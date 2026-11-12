@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дневник тренировок</title>
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --bg:#f4f5f7;
+    --card:#ffffff;
+    --text:#111827;
+    --muted:#6b7280;
+    --accent:#2563eb;
+    --accent-hover:#1d4ed8;
+    --accent-soft:rgba(37, 99, 235, 0.08);
+    --border:#e5e7eb;
+    --border-soft:#f1f2f4;
+
+    --up-bg:#dcfce7;
+    --up-fg:#15803d;
+    --up-soft:rgba(21, 128, 61, 0.16);
+
+    --danger:#dc2626;
+    --danger-bg:#fee2e2;
+
+    /* Сложность */
+    --diff-easy-bg:#dcfce7;
+    --diff-easy-bd:#16a34a;
+    --diff-easy-fg:#166534;
+    --diff-medium-bg:#fef9c3;
+    --diff-medium-bd:#eab308;
+    --diff-medium-fg:#854d0e;
+    --diff-hard-bg:#fee2e2;
+    --diff-hard-bd:#dc2626;
+    --diff-hard-fg:#991b1b;
+
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 16px 60px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-0.01em}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
+
+  /* ====== Компактная строка календаря (моб.) ====== */
+  .cal-compact{
+    display:none;width:100%;padding:10px 6px;border:0;background:transparent;
+    font:inherit;font-weight:600;color:var(--text);text-align:left;cursor:pointer;
+    border-radius:10px;gap:8px;align-items:center;justify-content:space-between;
+  }
+  .cal-compact:hover{background:#f3f4f6}
+  .cal-compact .cal-compact-date{display:inline-flex;align-items:center;gap:8px;font-size:15px}
+  .cal-compact .chevron{display:inline-block;font-size:12px;color:var(--muted);
+                        transition:transform .18s ease}
+
+  /* ====== Календарь ====== */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-head .m{font-weight:600}
+  .nav{border:1px solid var(--border);background:#fff;border-radius:8px;
+       width:30px;height:30px;cursor:pointer;font-size:16px;line-height:1;color:var(--text)}
+  .nav:hover{background:#f3f4f6}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow{text-align:center;font-size:11px;font-weight:600;color:var(--muted);padding:4px 0;
+       text-transform:uppercase;letter-spacing:.05em}
+  .day{position:relative;border:0;background:transparent;border-radius:8px;height:34px;
+       font:inherit;font-size:13px;color:var(--text);cursor:pointer}
+  .day:hover{background:#eef2ff}
+  .day.today{box-shadow:inset 0 0 0 1.5px var(--accent)}
+  .day.selected{background:var(--accent);color:#fff}
+  .day.has-workout::after{content:"";position:absolute;left:50%;bottom:3px;width:5px;height:5px;
+       border-radius:50%;background:var(--up-fg);transform:translateX(-50%)}
+  .day.selected.has-workout::after{background:#fff}
+  .legend{font-size:12px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:6px}
+  .legend i{width:5px;height:5px;border-radius:50%;background:var(--up-fg);display:inline-block}
+
+  /* ====== Тренировка на / Сложность ====== */
+  .workout-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 12px}
+  .meta-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .meta-field label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+                    color:var(--muted);font-weight:600}
+  .meta-field select{
+    font:inherit;
+    padding:9px 32px 9px 11px;
+    border:1px solid var(--border);
+    border-radius:9px;
+    background-color:#fff;
+    background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+    background-repeat:no-repeat;
+    background-position:right 10px center;
+    background-size:14px;
+    color:var(--text);
+    cursor:pointer;
+    appearance:none;-webkit-appearance:none;-moz-appearance:none;
+    transition:border-color .15s, background-color .15s, box-shadow .15s, color .15s;
+  }
+  .meta-field select:focus{outline:none;border-color:var(--accent);
+                           box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+  .meta-field select.diff-easy{
+    border-color:var(--diff-easy-bd);
+    background-color:var(--diff-easy-bg);
+    color:var(--diff-easy-fg);
+    font-weight:600;
+  }
+  .meta-field select.diff-medium{
+    border-color:var(--diff-medium-bd);
+    background-color:var(--diff-medium-bg);
+    color:var(--diff-medium-fg);
+    font-weight:600;
+  }
+  .meta-field select.diff-hard{
+    border-color:var(--diff-hard-bd);
+    background-color:var(--diff-hard-bg);
+    color:var(--diff-hard-fg);
+    font-weight:600;
+  }
+
+  /* ====== Форма упражнений ====== */
+  .form{display:grid;grid-template-columns:minmax(160px,2fr) 80px 140px 100px auto;
+        gap:8px;margin:14px 0 4px}
+  input{font:inherit;padding:9px 11px;border:1px solid var(--border);border-radius:9px;
+        background:#fff;color:var(--text);min-width:0}
+  input::placeholder{color:var(--muted);opacity:.8}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .btn{font:inherit;font-weight:600;padding:9px 16px;border:0;border-radius:9px;
+       background:var(--accent);color:#fff;cursor:pointer;letter-spacing:.01em}
+  .btn:hover{background:var(--accent-hover)}
+  .btn:disabled{opacity:.6;cursor:default}
+  .form-help{font-size:12px;color:var(--muted);margin:0 0 6px;line-height:1.4}
+  .form-help code{background:#f3f4f6;padding:1px 5px;border-radius:4px;
+                  font:inherit;font-size:12px;color:var(--text)}
+  .hint{font-size:12.5px;color:var(--muted);min-height:18px;margin-bottom:10px}
+
+  /* ====== Таблица упражнений ====== */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+     color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600}
+  td{padding:9px 10px;border-bottom:1px solid var(--border-soft)}
+  th:nth-child(n+2), td:nth-child(n+2){text-align:center}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover td:not(.up){background:#fafafa}
+  td.up{background:var(--up-bg);color:var(--up-fg);font-weight:700}
+  td.up .arrow{margin-left:3px;font-size:12px}
+  td.up .delta{margin-left:5px;font-size:11.5px;padding:1px 6px;border-radius:999px;
+               background:var(--up-soft);color:var(--up-fg);font-weight:700;
+               white-space:nowrap}
+  .reps-detail{display:inline-block;font-size:11px;color:var(--muted);
+               margin-left:6px;font-weight:400;white-space:nowrap}
+  td.up .reps-detail{color:var(--up-fg);opacity:.75}
+  .del{border:0;background:transparent;color:#9ca3af;cursor:pointer;font-size:17px;
+       line-height:1;border-radius:6px;width:26px;height:26px}
+  .del:hover{background:var(--danger-bg);color:var(--danger)}
+  .empty{text-align:center;color:var(--muted);padding:26px 10px;font-size:14px}
+  .name-cell{font-weight:500}
+
+  /* ====== Заметки, время, вес тела ====== */
+  .notes-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+  .notes-block h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+                  color:var(--muted);margin:0 0 8px;font-weight:600}
+  .notes-block h3:not(:first-child){margin-top:16px}
+  .time-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .time-row label{font-size:13px;color:var(--muted)}
+  .time-row input[type=time]{padding:7px 10px;width:120px}
+  .btn-mini{font:inherit;font-size:12.5px;padding:6px 11px;border:1px solid var(--border);
+            border-radius:8px;background:#fff;cursor:pointer;color:var(--text)}
+  .btn-mini:hover{background:#f3f4f6}
+  .btn-mini.start{border-color:var(--up-fg);color:var(--up-fg)}
+  .btn-mini.start:hover{background:var(--up-bg)}
+  .btn-mini.end{border-color:var(--danger);color:var(--danger)}
+  .btn-mini.end:hover{background:var(--danger-bg)}
+  .duration{margin-left:auto;font-size:13px;color:var(--muted)}
+  .duration b{color:var(--text);font-weight:600}
+  .notes-block textarea{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--border);
+                        border-radius:9px;background:#fff;resize:vertical;min-height:76px;
+                        color:var(--text);font-family:inherit}
+  .notes-block textarea::placeholder{color:var(--muted);opacity:.8}
+  .notes-block textarea:focus{outline:none;border-color:var(--accent);
+                              box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+  .notes-actions{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .btn-save{background:#10b981}
+  .btn-save:hover{background:#059669}
+  .notes-status{font-size:12.5px;color:var(--up-fg);opacity:0;transition:opacity .25s}
+
+  .weight-row{display:flex;align-items:center;gap:10px}
+  .weight-row input{flex:1;max-width:160px}
+  .weight-unit{color:var(--muted);font-size:14px}
+
+  /* ====== Диаграмма ====== */
+  .chart-card{margin-top:18px}
+  .chart-head{display:flex;align-items:center;justify-content:space-between;
+              gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .chart-head h3{margin:0;font-size:16px;font-weight:600}
+  .chart-stats{font-size:12.5px;color:var(--muted)}
+  .chart-stats b{color:var(--text);font-weight:600}
+  .chart-stats .up{color:var(--up-fg)}
+  .chart-stats .down{color:var(--danger)}
+  .chart-wrap{position:relative;width:100%}
+  #weightChart{display:block;width:100%;height:auto;font-family:inherit}
+  .chart-empty{text-align:center;color:var(--muted);padding:36px 10px;font-size:14px}
+
+  /* ====== Планшеты / телефоны ≤ 820px ====== */
+  @media (max-width: 820px){
+    .wrap{padding:20px 14px 48px}
+    .layout{grid-template-columns:1fr}
+
+    .cal-compact{display:flex}
+    .cal-card.collapsed .cal-full{display:none}
+    .cal-card:not(.collapsed) .cal-compact .chevron{transform:rotate(180deg)}
+
+    .nav{width:38px;height:38px;font-size:18px}
+    .day{height:42px;font-size:14px}
+
+    .form{grid-template-columns:1fr 1fr 1fr;gap:8px}
+    .form input:first-child{grid-column:1/-1}
+    .form .btn{grid-column:1/-1;min-height:48px;font-size:15px}
+
+    input, textarea{font-size:16px;padding:11px 12px}
+    .meta-field select{font-size:16px;padding:11px 32px 11px 12px}
+    .time-row input[type=time]{font-size:16px;padding:10px}
+
+    .btn-mini{padding:10px 13px;font-size:13.5px}
+    .duration{margin-left:0;width:100%}
+    #dayTitle{font-size:17px !important}
+  }
+
+  /* ====== Телефоны ≤ 560px ====== */
+  @media (max-width: 560px){
+    .wrap{padding:16px 12px 40px}
+    h1{font-size:20px}
+    .sub{font-size:12.5px;margin-bottom:16px}
+    .card{padding:12px;border-radius:12px}
+
+    .workout-meta{grid-template-columns:1fr;gap:8px;margin:12px 0 10px}
+
+    .cal-compact .cal-compact-date{font-size:14.5px}
+    .cal-head .m{font-size:14px}
+    .cal{gap:2px}
+    .dow{font-size:10px;padding:2px 0}
+    .day{height:38px;font-size:13px}
+    .legend{display:none}
+
+    table, thead, tbody, tr{display:block}
+    thead{display:none}
+    tbody tr{background:#fff;border:1px solid var(--border);border-radius:12px;
+             padding:12px;margin-bottom:10px}
+    tbody tr:last-child{margin-bottom:0}
+    tbody tr:hover td:not(.up){background:transparent}
+    td{display:flex;justify-content:space-between;align-items:center;
+       gap:12px;padding:6px 0;border:0}
+    td::before{content:attr(data-label);font-weight:600;color:var(--muted);
+               font-size:11px;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+    td .val{margin-left:auto;text-align:right}
+    td.name-cell{padding:0 0 10px;margin-bottom:6px;border-bottom:1px solid var(--border-soft)}
+    td.name-cell::before{display:none}
+    td.name-cell .val{margin-left:0;text-align:left;font-size:15.5px;font-weight:600}
+    td.up{background:var(--up-bg);padding:6px 10px;border-radius:8px;margin:2px 0}
+    td.up::before{color:var(--up-fg)}
+    td:last-child{justify-content:flex-end;padding:10px 0 0;margin-top:6px;
+                  border-top:1px solid var(--border-soft)}
+    td:last-child::before{display:none}
+    .del{width:38px;height:38px;font-size:22px}
+    .form{margin:12px 0 6px}
+    .btn{min-height:50px}
+    .time-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px 6px;align-items:center}
+    .time-row label{font-size:12.5px}
+    .time-row input[type=time]{width:100%}
+    .notes-block textarea{min-height:92px}
+    .notes-actions{flex-direction:column;align-items:stretch}
+    .btn-save{width:100%;min-height:48px}
+    .notes-status{text-align:center}
+    .weight-row input{max-width:100%}
+    .chart-head h3{font-size:15px}
+
+    .reps-detail{display:none}
+  }
+
+  @media (max-width: 380px){
+    .form{grid-template-columns:1fr 1fr}
+    .form #weight{grid-column:1/-1}
+    .day{height:34px;font-size:12px}
+    .nav{width:34px;height:34px}
+    .cal-head .m{font-size:13px}
+    h1{font-size:18px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Дневник тренировок</h1>
+  <div class="sub">Выбери день, запиши упражнения, отметь время, вес и самочувствие. Улучшения подсвечиваются зелёным с приростом.</div>
+
+  <div class="layout">
+    <div class="card cal-card" id="calCard">
+      <button class="cal-compact" id="calCompactBtn" type="button" aria-expanded="true">
+        <span class="cal-compact-date">📅 <span id="compactDate"></span></span>
+        <span class="chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="cal-full" id="calFull">
+        <div class="cal-head">
+          <button class="nav" id="prevMonth" type="button">‹</button>
+          <div class="m" id="monthLabel"></div>
+          <button class="nav" id="nextMonth" type="button">›</button>
+        </div>
+        <div class="cal" id="calGrid"></div>
+        <div class="legend"><i></i> день с тренировкой</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:600;font-size:16px" id="dayTitle"></div>
+
+      <div class="workout-meta">
+        <div class="meta-field">
+          <label for="workoutType">Тренировка на:</label>
+          <select id="workoutType">
+            <option value="">— не выбрано —</option>
+            <option value="back_triceps">Спина, трицепс</option>
+            <option value="chest_shoulders_biceps">Грудь, плечи, бицепс</option>
+            <option value="legs_cardio">Ноги, кардио</option>
+          </select>
+        </div>
+        <div class="meta-field">
+          <label for="difficulty">Сложность:</label>
+          <select id="difficulty">
+            <option value="">— не выбрано —</option>
+            <option value="easy">Легкая</option>
+            <option value="medium">Средняя</option>
+            <option value="hard">Сложная</option>
+          </select>
+        </div>
+      </div>
+
+      <form class="form" id="form" autocomplete="off">
+        <input id="name" list="names" placeholder="Упражнение (напр. Жим лёжа)" required>
+        <datalist id="names"></datalist>
+        <input id="sets"   type="number" inputmode="numeric" min="0" max="99"   placeholder="Подходы">
+        <input id="reps"   type="text" minlength="1" placeholder="10 или 12,10,8,6">
+        <input id="weight" type="number" inputmode="decimal" min="0" max="999" step="0.5" placeholder="Вес, кг">
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+      <div class="form-help">
+        💡 Повторения: одно число (для всех подходов) или список через запятую/пробел — например <code>12,10,8,6</code>. В историю сохранится среднее.
+      </div>
+      <div class="hint" id="lastHint"></div>
+
+      <table id="table" style="display:none">
+        <thead>
+          <tr>
+            <th>Упражнение</th><th>Подходы</th><th>Повторения</th><th>Вес</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="empty">Пока ничего не записано на этот день.</div>
+
+      <div class="notes-block">
+        <h3>Вес тела</h3>
+        <div class="weight-row">
+          <input type="number" id="bodyWeight" inputmode="decimal"
+                 min="0" max="500" step="0.1" placeholder="Например, 78.5">
+          <span class="weight-unit">кг</span>
+        </div>
+
+        <h3>Время тренировки</h3>
+        <div class="time-row">
+          <label for="startTime">Начало</label>
+          <input type="time" id="startTime">
+          <button class="btn-mini start" type="button" id="btnStart" title="Поставить текущее время">▶ Старт</button>
+
+          <label for="endTime">Конец</label>
+          <input type="time" id="endTime">
+          <button class="btn-mini end" type="button" id="btnEnd" title="Поставить текущее время">■ Финиш</button>
+
+          <span class="duration" id="duration"></span>
+        </div>
+
+        <h3>Самочувствие</h3>
+        <textarea id="comment" placeholder="Как прошла тренировка, самочувствие, что понравилось/нет…"></textarea>
+        <div class="notes-actions">
+          <button class="btn btn-save" type="button" id="btnSaveNotes">Сохранить заметку</button>
+          <span class="notes-status" id="notesStatus"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-card">
+    <div class="chart-head">
+      <h3>Динамика веса за <span id="chartMonthLabel"></span></h3>
+      <div class="chart-stats" id="chartStats"></div>
+    </div>
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-empty" id="chartEmpty">Нет данных о весе за этот месяц.</div>
+      <svg id="weightChart" style="display:none"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+const $ = (id) => document.getElementById(id);
+
+let selectedDate = toISO(new Date());
+let view = (() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })();
+let monthDates = new Set();
+let summary = new Map();
+let lastSavedNotesSig = '';
+let chartData = [];
+
+function toISO(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+         + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fmtHuman(iso) { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; }
+function weekdayName(iso) { return WEEKDAYS[(new Date(iso + 'T00:00:00').getDay() + 6) % 7]; }
+function norm(s) { return s.trim().toLowerCase().replace(/\s+/g, ' '); }
+function fmtNum(n) { return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2))); }
+function fmtWeight(w) { return Number.isInteger(w) ? String(w) : w.toFixed(1); }
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function isMobile() { return window.matchMedia('(max-width: 820px)').matches; }
+
+const CHART = {
+  line:     '#2563eb',
+  grid:     '#f1f2f4',
+  axis:     '#e5e7eb',
+  dashed:   '#e5e7eb',
+  tick:     '#6b7280',
+  label:    '#111827',
+  subtitle: '#9ca3af',
+  halo:     '#ffffff',
+};
+
+function parseRepsInput(raw) {
+  raw = (raw || '').trim();
+  if (!raw) return { nums: [], count: 0 };
+  const parts = raw.split(/[,;\s]+/).filter(x => x);
+  const nums = [];
+  for (const p of parts) {
+    const v = parseInt(p, 10);
+    if (isNaN(v) || v < 0 || v > 999) throw new Error(`Некорректное число повторений: «${p}»`);
+    nums.push(v);
+  }
+  return { nums, count: nums.length };
+}
+
+function updateDifficultyStyle() {
+  const d = $('difficulty');
+  d.classList.remove('diff-easy', 'diff-medium', 'diff-hard');
+  if (d.value === 'easy')   d.classList.add('diff-easy');
+  else if (d.value === 'medium') d.classList.add('diff-medium');
+  else if (d.value === 'hard')   d.classList.add('diff-hard');
+}
+
+$('workoutType').addEventListener('change', () => saveNotes(false));
+$('difficulty').addEventListener('change', () => { updateDifficultyStyle(); saveNotes(false); });
+
+function setCalendarCollapsed(collapsed) {
+  const card = $('calCard'), btn = $('calCompactBtn');
+  if (collapsed && isMobile()) {
+    card.classList.add('collapsed');
+    btn.setAttribute('aria-expanded', 'false');
+  } else {
+    card.classList.remove('collapsed');
+    btn.setAttribute('aria-expanded', 'true');
+  }
+}
+function updateCompactDate() {
+  $('compactDate').textContent = `${fmtHuman(selectedDate)} · ${weekdayName(selectedDate)}`;
+}
+$('calCompactBtn').onclick = () => {
+  $('calCard').classList.toggle('collapsed');
+  $('calCompactBtn').setAttribute(
+    'aria-expanded',
+    $('calCard').classList.contains('collapsed') ? 'false' : 'true'
+  );
+};
+
+function renderCalendar() {
+  $('monthLabel').textContent = MONTHS[view.m] + ' ' + view.y;
+  const grid = $('calGrid');
+  grid.innerHTML = '';
+  WEEKDAYS.forEach(w => {
+    const el = document.createElement('div');
+    el.className = 'dow'; el.textContent = w; grid.appendChild(el);
+  });
+  const offset = (new Date(view.y, view.m, 1).getDay() + 6) % 7;
+  for (let i = 0; i < offset; i++) grid.appendChild(document.createElement('div'));
+
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const today = toISO(new Date());
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${view.y}-${String(view.m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'day'; btn.textContent = d;
+    if (iso === today) btn.classList.add('today');
+    if (iso === selectedDate) btn.classList.add('selected');
+    if (monthDates.has(iso)) btn.classList.add('has-workout');
+    btn.onclick = () => {
+      selectedDate = iso; updateCompactDate(); renderCalendar();
+      if (isMobile()) setCalendarCollapsed(true);
+      loadDay();
+    };
+    grid.appendChild(btn);
+  }
+}
+
+async function loadMonth() {
+  const res = await fetch(`/api/month?year=${view.y}&month=${view.m + 1}`);
+  const data = await res.json();
+  monthDates = new Set(data.dates);
+  renderCalendar();
+  loadWeights();
+}
+$('prevMonth').onclick = () => { view.m--; if (view.m < 0) { view.m = 11; view.y--; } loadMonth(); };
+$('nextMonth').onclick = () => { view.m++; if (view.m > 11) { view.m = 0; view.y++; } loadMonth(); };
+
+function cell(text, cls, arrow, delta, label, detail) {
+  const td = document.createElement('td');
+  if (cls) td.className = cls;
+  if (label) td.setAttribute('data-label', label);
+  const val = document.createElement('span');
+  val.className = 'val'; val.textContent = text;
+  if (arrow) { const s = document.createElement('span'); s.className = 'arrow'; s.textContent = '↑'; val.appendChild(s); }
+  if (delta) { const d = document.createElement('span'); d.className = 'delta'; d.textContent = delta; val.appendChild(d); }
+  if (detail) { const dd = document.createElement('span'); dd.className = 'reps-detail'; dd.textContent = detail; val.appendChild(dd); }
+  td.appendChild(val);
+  return td;
+}
+
+function renderTable(items) {
+  const tbody = $('tbody');
+  tbody.innerHTML = '';
+  if (!items.length) {
+    $('table').style.display = 'none'; $('empty').style.display = 'block'; return;
+  }
+  $('table').style.display = 'table';
+  $('empty').style.display = 'none';
+
+  items.forEach(it => {
+    const tr = document.createElement('tr');
+    tr.appendChild(cell(it.name, 'name-cell', false, null, ''));
+    const repsDeltaStr = (it.improved.reps && it.reps_delta != null) ? '+' + fmtNum(it.reps_delta) : null;
+    const weightDeltaStr = (it.improved.weight && it.weight_delta != null) ? '+' + fmtNum(it.weight_delta) + ' кг' : null;
+    tr.appendChild(cell(it.sets ?? '—', '', false, null, 'Подходы'));
+    const repsCell = cell(it.reps ?? '—', it.improved.reps ? 'up' : '',
+                          it.improved.reps, repsDeltaStr, 'Повторения', it.reps_detail);
+    if (it.reps_detail) repsCell.title = `По подходам: ${it.reps_detail} → среднее ${it.reps}`;
+    tr.appendChild(repsCell);
+    tr.appendChild(cell(it.weight != null ? it.weight + ' кг' : '—',
+                        it.improved.weight ? 'up' : '',
+                        it.improved.weight, weightDeltaStr, 'Вес'));
+
+    const td = document.createElement('td');
+    const del = document.createElement('button');
+    del.className = 'del'; del.type = 'button'; del.textContent = '×'; del.title = 'Удалить';
+    del.onclick = () => removeItem(it.id);
+    td.appendChild(del); tr.appendChild(td);
+
+    if (it.prev) {
+      tr.title = `Прошлый раз (${fmtHuman(it.prev.date)}): `
+               + `${it.prev.sets ?? '—'} × ${it.prev.reps ?? '—'} · ${it.prev.weight ?? '—'} кг`;
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function computeDuration(start, end) {
+  if (!start || !end) return '';
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? `${h} ч ${String(m).padStart(2, '0')} мин` : `${m} мин`;
+}
+function updateDuration() {
+  const d = computeDuration($('startTime').value, $('endTime').value);
+  $('duration').innerHTML = d ? 'Длительность: <b>' + d + '</b>' : '';
+}
+function notesSignature() {
+  return JSON.stringify([
+    $('comment').value, $('startTime').value, $('endTime').value,
+    $('bodyWeight').value, $('workoutType').value, $('difficulty').value,
+  ]);
+}
+function renderNotes(notes) {
+  $('comment').value = notes?.comment || '';
+  $('startTime').value = notes?.started_at || '';
+  $('endTime').value = notes?.finished_at || '';
+  $('bodyWeight').value = notes?.body_weight != null ? notes.body_weight : '';
+  $('workoutType').value = notes?.workout_type || '';
+  $('difficulty').value = notes?.difficulty || '';
+  updateDifficultyStyle();
+  updateDuration();
+  lastSavedNotesSig = notesSignature();
+}
+function flashSaved() {
+  const el = $('notesStatus');
+  el.textContent = '✓ Сохранено'; el.style.opacity = '1';
+  clearTimeout(window._statusTimer);
+  window._statusTimer = setTimeout(() => { el.style.opacity = '0'; }, 1500);
+}
+async function saveNotes(showToast) {
+  const sig = notesSignature();
+  if (sig === lastSavedNotesSig) return;
+  const bwRaw = $('bodyWeight').value.trim();
+  const bodyWeight = bwRaw === '' ? null : parseFloat(bwRaw.replace(',', '.'));
+  if (bodyWeight !== null && (isNaN(bodyWeight) || bodyWeight <= 0 || bodyWeight >= 500)) {
+    alert('Вес тела должен быть числом от 0 до 500 кг'); return;
+  }
+  const payload = {
+    date: selectedDate,
+    comment: $('comment').value,
+    started_at: $('startTime').value || null,
+    finished_at: $('endTime').value || null,
+    body_weight: bodyWeight,
+    workout_type: $('workoutType').value || null,
+    difficulty: $('difficulty').value || null,
+  };
+  try {
+    const res = await fetch('/api/day/notes', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Не удалось сохранить'); return;
+    }
+    lastSavedNotesSig = sig;
+    if (showToast) flashSaved();
+    loadMonth();
+  } catch (e) { console.error(e); }
+}
+
+$('btnStart').onclick = async () => { $('startTime').value = nowHHMM(); updateDuration(); await saveNotes(true); };
+$('btnEnd').onclick   = async () => { $('endTime').value = nowHHMM();   updateDuration(); await saveNotes(true); };
+$('btnSaveNotes').onclick = () => saveNotes(true);
+$('startTime').addEventListener('change', () => saveNotes(false));
+$('endTime').addEventListener('change',   () => saveNotes(false));
+$('comment').addEventListener('blur',     () => saveNotes(false));
+$('bodyWeight').addEventListener('blur',  () => saveNotes(false));
+$('bodyWeight').addEventListener('change', () => saveNotes(false));
+$('startTime').addEventListener('input', updateDuration);
+$('endTime').addEventListener('input',   updateDuration);
+
+async function loadDay() {
+  $('dayTitle').textContent = `${fmtHuman(selectedDate)} · ${weekdayName(selectedDate)}`;
+  const res = await fetch('/api/day?date=' + selectedDate);
+  const data = await res.json();
+  renderTable(data.items);
+  renderNotes(data.notes || {});
+}
+
+async function loadSummary() {
+  const res = await fetch('/api/summary');
+  const data = await res.json();
+  summary = new Map(data.items.map(i => [i.name_key, i]));
+  const dl = $('names'); dl.innerHTML = '';
+  data.items.forEach(i => {
+    const o = document.createElement('option');
+    o.value = i.name; dl.appendChild(o);
+  });
+  updateHint();
+}
+function updateHint() {
+  const rec = summary.get(norm($('name').value));
+  if (!rec) { $('lastHint').textContent = ''; return; }
+  let repsStr = rec.reps != null ? String(rec.reps) : '—';
+  if (rec.reps_detail) repsStr = `${rec.reps} (${rec.reps_detail})`;
+  $('lastHint').textContent =
+    `Прошлый раз (${fmtHuman(rec.date)}): ${rec.sets ?? '—'} подх. × ${repsStr} повт. · ${rec.weight ?? '—'} кг`;
+}
+$('name').addEventListener('input', updateHint);
+
+function intOrNull(v) { if (v === '' || v == null) return null; const n = parseInt(v, 10); return isNaN(n) ? null : n; }
+function floatOrNull(v) { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; }
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('name').value.trim();
+  if (!name) { $('name').focus(); return; }
+
+  const repsRaw = $('reps').value.trim();
+  let repsParsed;
+  try { repsParsed = parseRepsInput(repsRaw); }
+  catch (err) { alert(err.message); return; }
+
+  let setsVal = intOrNull($('sets').value);
+  if (repsParsed.count > 1) setsVal = repsParsed.count;
+
+  const payload = {
+    date: selectedDate, name, sets: setsVal,
+    reps: null, reps_detail: repsRaw || null,
+    weight: floatOrNull($('weight').value),
+  };
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/exercises', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Не удалось сохранить'); return;
+    }
+    $('name').value = ''; $('sets').value = ''; $('reps').value = ''; $('weight').value = '';
+    $('lastHint').textContent = '';
+    $('name').focus();
+    await Promise.all([loadDay(), loadMonth(), loadSummary()]);
+  } finally { btn.disabled = false; }
+});
+
+async function removeItem(id) {
+  await fetch('/api/exercises/' + id, { method: 'DELETE' });
+  await Promise.all([loadDay(), loadMonth(), loadSummary()]);
+}
+
+async function loadWeights() {
+  try {
+    const res = await fetch(`/api/weights?year=${view.y}&month=${view.m + 1}`);
+    const data = await res.json();
+    chartData = data.items || [];
+  } catch { chartData = []; }
+  $('chartMonthLabel').textContent = MONTHS[view.m] + ' ' + view.y;
+  updateChartStats(); renderChart();
+}
+function updateChartStats() {
+  const el = $('chartStats');
+  if (chartData.length < 2) {
+    el.textContent = chartData.length === 1 ? `Одна запись: ${fmtWeight(chartData[0].weight)} кг` : '';
+    return;
+  }
+  const first = chartData[0].weight, last = chartData[chartData.length - 1].weight;
+  const diff = +(last - first).toFixed(1);
+  const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+  const sign = diff > 0 ? '+' : '';
+  el.innerHTML = `Изменение за месяц: <b class="${cls}">${sign}${diff} кг</b>`;
+}
+function renderChart() {
+  const svg = $('weightChart'), empty = $('chartEmpty'), wrap = $('chartWrap');
+  if (!chartData.length) { svg.style.display = 'none'; empty.style.display = 'block'; return; }
+  svg.style.display = 'block'; empty.style.display = 'none';
+  const W = Math.max(320, wrap.clientWidth || 800), H = 260;
+  const PAD = { top: 30, right: 24, bottom: 46, left: 54 };
+  const plotW = W - PAD.left - PAD.right, plotH = H - PAD.top - PAD.bottom;
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const ws = chartData.map(i => i.weight);
+  let minW = Math.min(...ws), maxW = Math.max(...ws);
+  if (maxW - minW < 0.5) { minW -= 1; maxW += 1; }
+  else { const pad = (maxW - minW) * 0.15; minW -= pad; maxW += pad; }
+  const xFor = (day) => PAD.left + (daysInMonth > 1 ? ((day - 1) / (daysInMonth - 1)) * plotW : plotW / 2);
+  const yFor = (w) => PAD.top + (1 - (w - minW) / (maxW - minW)) * plotH;
+  const parts = [];
+  const yTicks = 4, range = maxW - minW, decimals = range < 5 ? 1 : 0;
+  for (let i = 0; i <= yTicks; i++) {
+    const val = minW + (maxW - minW) * (i / yTicks);
+    const y = yFor(val);
+    parts.push(`<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + plotW}" y2="${y}" stroke="${CHART.grid}" stroke-width="1"/>`);
+    parts.push(`<text x="${PAD.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="${CHART.tick}">${val.toFixed(decimals)}</text>`);
+  }
+  parts.push(`<line x1="${PAD.left}" y1="${PAD.top + plotH}" x2="${PAD.left + plotW}" y2="${PAD.top + plotH}" stroke="${CHART.axis}" stroke-width="1"/>`);
+  const points = chartData.map(i => {
+    const day = parseInt(i.date.slice(8, 10), 10);
+    return { day, w: i.weight, x: xFor(day), y: yFor(i.weight) };
+  });
+  if (points.length > 1) {
+    let d = `M ${points[0].x} ${points[0].y}`;
+    for (let k = 1; k < points.length; k++) d += ` L ${points[k].x} ${points[k].y}`;
+    parts.push(`<path d="${d}" fill="none" stroke="${CHART.line}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+  }
+  const showDateUnderPoint = points.length <= 15;
+  points.forEach(p => {
+    if (showDateUnderPoint) {
+      parts.push(`<line x1="${p.x}" y1="${p.y}" x2="${p.x}" y2="${PAD.top + plotH}" stroke="${CHART.dashed}" stroke-width="1" stroke-dasharray="2,3"/>`);
+    }
+    parts.push(`<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" font-size="11" font-weight="600" fill="${CHART.label}">${fmtWeight(p.w)}</text>`);
+    parts.push(`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${CHART.line}" stroke="${CHART.halo}" stroke-width="2"/>`);
+    if (showDateUnderPoint) {
+      parts.push(`<text x="${p.x}" y="${PAD.top + plotH + 18}" text-anchor="middle" font-size="10" fill="${CHART.tick}">${p.day}</text>`);
+    }
+  });
+  if (!showDateUnderPoint) {
+    const tickDays = [1, 5, 10, 15, 20, 25, daysInMonth];
+    [...new Set(tickDays)].filter(d => d <= daysInMonth).forEach(d => {
+      const x = xFor(d);
+      parts.push(`<text x="${x}" y="${PAD.top + plotH + 18}" text-anchor="middle" font-size="10" fill="${CHART.tick}">${d}</text>`);
+    });
+  }
+  parts.push(`<text x="${W / 2}" y="${H - 8}" text-anchor="middle" font-size="10" fill="${CHART.subtitle}">День месяца</text>`);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.innerHTML = parts.join('');
+}
+let chartResizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(chartResizeTimer);
+  chartResizeTimer = setTimeout(() => { if (chartData.length) renderChart(); }, 150);
+});
+
+updateCompactDate();
+loadMonth();
+loadDay();
+loadSummary();
+</script>
+</body>
+</html>
