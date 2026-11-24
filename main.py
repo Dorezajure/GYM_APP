@@ -371,7 +371,7 @@ def add_exercise(payload: ExerciseIn):
         )
         conn.commit()
         row = conn.execute("SELECT * FROM exercises WHERE id = %s",
-                           (cur.fetchone()[0],)).fetchone()
+                           (cur.fetchone()["id"],)).fetchone()
         return make_item(row, prev_for(conn, row))
     finally:
         conn.close()
