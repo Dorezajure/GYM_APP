@@ -167,6 +167,7 @@
                   color:var(--muted);margin:0 0 8px;font-weight:600}
   .notes-block h3:not(:first-child){margin-top:16px}
   .time-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .time-group{display:inline-flex;align-items:center;gap:8px}
   .time-row label{font-size:13px;color:var(--muted)}
   .time-row input[type=time]{padding:7px 10px;width:120px}
   .btn-mini{font:inherit;font-size:12.5px;padding:6px 11px;border:1px solid var(--border);
@@ -269,7 +270,8 @@
     .del{width:38px;height:38px;font-size:22px}
     .form{margin:12px 0 6px}
     .btn{min-height:50px}
-    .time-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px 6px;align-items:center}
+    .time-row{display:grid;grid-template-columns:1fr;gap:6px}
+    .time-group{display:grid;grid-template-columns:auto 1fr auto;gap:8px 6px;align-items:center}
     .time-row label{font-size:12.5px}
     .time-row input[type=time]{width:100%}
     .notes-block textarea{min-height:92px}
@@ -372,14 +374,16 @@
 
         <h3>Время тренировки</h3>
         <div class="time-row">
-          <label for="startTime">Начало</label>
-          <input type="time" id="startTime">
-          <button class="btn-mini start" type="button" id="btnStart" title="Поставить текущее время">▶ Старт</button>
-
-          <label for="endTime">Конец</label>
-          <input type="time" id="endTime">
-          <button class="btn-mini end" type="button" id="btnEnd" title="Поставить текущее время">■ Финиш</button>
-
+          <span class="time-group">
+            <label for="startTime">Начало</label>
+            <input type="time" id="startTime">
+            <button class="btn-mini start" type="button" id="btnStart" title="Поставить текущее время">▶ Старт</button>
+          </span>
+          <span class="time-group">
+            <label for="endTime">Конец</label>
+            <input type="time" id="endTime">
+            <button class="btn-mini end" type="button" id="btnEnd" title="Поставить текущее время">■ Финиш</button>
+          </span>
           <span class="duration" id="duration"></span>
         </div>
 
