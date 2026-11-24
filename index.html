@@ -350,6 +350,7 @@
         💡 Повторения: одно число (для всех подходов) или список через запятую/пробел — например <code>12,10,8,6</code>. В историю сохранится среднее.
       </div>
       <div class="hint" id="lastHint"></div>
+      <div class="hint" id="exerciseStatus" style="color:#dc2626"></div>
 
       <table id="table" style="display:none">
         <thead>
@@ -630,6 +631,7 @@ async function saveNotes(showToast) {
     workout_type: $('workoutType').value || null,
     difficulty: $('difficulty').value || null,
   };
+  const statusEl = $('notesStatus');
   try {
     const res = await fetch('/api/day/notes', {
       method: 'PUT',
@@ -638,8 +640,16 @@ async function saveNotes(showToast) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Не удалось сохранить'); return;
+      if (statusEl) {
+        statusEl.textContent = '✗ Не сохранилось: ' + (err.detail || ('ошибка сервера ' + res.status));
+        statusEl.style.color = '#dc2626'; statusEl.style.opacity = '1';
+      }
+      if (!localStorage.getItem('pendingNotes') && notesSignature()) {
+        try { localStorage.setItem('pendingNotes', JSON.stringify(payload)); } catch {}
+      }
+      return;
     }
+    try { localStorage.removeItem('pendingNotes'); } catch {}
     lastSavedNotesSig = sig;
     if (showToast) flashSaved();
     loadMonth();
@@ -717,12 +727,21 @@ $('form').addEventListener('submit', async (e) => {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(err.detail || 'Не удалось сохранить'); return;
+      const msg = err.detail || ('ошибка сервера ' + res.status);
+      alert('Не удалось сохранить: ' + msg);
+      try { localStorage.setItem('pendingExercise', JSON.stringify(payload)); } catch {}
+      return;
     }
+    try { localStorage.removeItem('pendingExercise'); } catch {}
     $('name').value = ''; $('sets').value = ''; $('reps').value = ''; $('weight').value = '';
     $('lastHint').textContent = '';
     $('name').focus();
     await Promise.all([loadDay(), loadMonth(), loadSummary()]);
+  } catch (e) {
+    console.error(e);
+    alert('Нет связи с сервером. Данные сохранены на устройстве — при перезагрузке предложу повторить.');
+    try { localStorage.setItem('pendingExercise', JSON.stringify(payload)); } catch {}
+    return;
   } finally { btn.disabled = false; }
 });
 
@@ -817,6 +836,37 @@ updateCompactDate();
 loadMonth();
 loadDay();
 loadSummary();
+
+// Восстановление несохранённых данных после ошибки сети/сервера
+(function restorePending() {
+  try {
+    const pe = localStorage.getItem('pendingExercise');
+    if (pe) {
+      const p = JSON.parse(pe);
+      const st = $('exerciseStatus');
+      st.textContent = `Есть несохранённое: «${p.name}» от ${fmtHuman(p.date)}. Нажмите «Добавить» ещё раз или нажмите сюда, чтобы повторить.`;
+      st.style.cursor = 'pointer';
+      st.onclick = () => {
+        $('name').value = p.name || '';
+        $('sets').value = p.sets != null ? p.sets : '';
+        $('reps').value = p.reps_detail || (p.reps != null ? p.reps : '');
+        $('weight').value = p.weight != null ? p.weight : '';
+        st.textContent = ''; st.style.cursor = '';
+        try { localStorage.removeItem('pendingExercise'); } catch {}
+        $('name').focus();
+      };
+    }
+    const pn = localStorage.getItem('pendingNotes');
+    if (pn) {
+      const p = JSON.parse(pn);
+      const st = $('notesStatus');
+      st.textContent = `Заметка от ${fmtHuman(p.date)} не сохранилась. Нажмите «Сохранить заметку» ещё раз или откройте этот день, чтобы повторить.`;
+      st.style.color = '#dc2626'; st.style.opacity = '1';
+      st.style.cursor = 'pointer';
+      st.onclick = () => { try { localStorage.removeItem('pendingNotes'); } catch {} st.textContent = ''; st.style.cursor = ''; };
+    }
+  } catch (e) { console.error(e); }
+})();
 </script>
 </body>
 </html>
