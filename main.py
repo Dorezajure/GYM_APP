@@ -1,5 +1,5 @@
 """
-Дневник тренировок — бэкенд (FastAPI + SQLite).
+Дневник тренировок — бэкенд (FastAPI + PostgreSQL).
 
 Структура проекта:
     main.py          ← этот файл: только API и раздача index.html
@@ -12,17 +12,17 @@
 """
 import os
 import re
-import sqlite3
 from datetime import datetime
 from typing import Optional
 
+import psycopg
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------- Пути и константы
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get("DB_PATH", os.path.join(BASE_DIR, "fitness.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL")
 INDEX_HTML_PATH = os.path.join(BASE_DIR, "index.html")
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -38,53 +38,75 @@ app = FastAPI(
 
 
 # ---------------------------------------------------------------- БД
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+def get_db() -> psycopg.Connection:
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "Переменная окружения DATABASE_URL не задана. "
+            "Локально: export DATABASE_URL=postgres://...</путь>"
+        )
+    conn = psycopg.connect(DATABASE_URL)
+    conn.row_factory = psycopg.rows.dict_row
     return conn
 
 
-def ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
-    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+def ensure_column(conn: psycopg.Connection, table: str, column: str, ddl: str) -> None:
+    cols = [
+        r["column_name"]
+        for r in conn.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = %s
+            """,
+            (table,),
+        ).fetchall()
+    ]
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def init_db() -> None:
     conn = get_db()
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS exercises (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            date        TEXT    NOT NULL,
-            name        TEXT    NOT NULL,
-            name_key    TEXT    NOT NULL,
-            sets        INTEGER,
-            reps        INTEGER,
-            reps_detail TEXT,
-            weight      REAL,
-            created_at  TEXT    NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_name_date ON exercises(name_key, date, id);
-        CREATE INDEX IF NOT EXISTS idx_date      ON exercises(date);
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS exercises (
+                id          SERIAL PRIMARY KEY,
+                date        TEXT    NOT NULL,
+                name        TEXT    NOT NULL,
+                name_key    TEXT    NOT NULL,
+                sets        INTEGER,
+                reps        INTEGER,
+                reps_detail TEXT,
+                weight      DOUBLE PRECISION,
+                created_at  TEXT    NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_name_date ON exercises(name_key, date, id)"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON exercises(date)")
 
-        CREATE TABLE IF NOT EXISTS workout_days (
-            date          TEXT PRIMARY KEY,
-            comment       TEXT,
-            started_at    TEXT,
-            finished_at   TEXT,
-            body_weight   REAL,
-            workout_type  TEXT,
-            difficulty    TEXT
-        );
-        """
-    )
-    ensure_column(conn, "exercises",    "reps_detail",  "TEXT")
-    ensure_column(conn, "workout_days", "body_weight",  "REAL")
-    ensure_column(conn, "workout_days", "workout_type", "TEXT")
-    ensure_column(conn, "workout_days", "difficulty",   "TEXT")
-    conn.commit()
-    conn.close()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workout_days (
+                date          TEXT PRIMARY KEY,
+                comment       TEXT,
+                started_at    TEXT,
+                finished_at   TEXT,
+                body_weight   DOUBLE PRECISION,
+                workout_type  TEXT,
+                difficulty    TEXT
+            )
+            """
+        )
+        ensure_column(conn, "exercises",    "reps_detail",  "TEXT")
+        ensure_column(conn, "workout_days", "body_weight",  "DOUBLE PRECISION")
+        ensure_column(conn, "workout_days", "workout_type", "TEXT")
+        ensure_column(conn, "workout_days", "difficulty",   "TEXT")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 init_db()
@@ -145,12 +167,12 @@ def parse_reps_input(reps_detail: Optional[str], fallback_reps: Optional[int]):
     return avg, ",".join(str(n) for n in nums), len(nums)
 
 
-def prev_for(conn: sqlite3.Connection, row: sqlite3.Row):
+def prev_for(conn: psycopg.Connection, row: dict):
     return conn.execute(
         """
         SELECT * FROM exercises
-        WHERE name_key = ?
-          AND (date < ? OR (date = ? AND id < ?))
+        WHERE name_key = %s
+          AND (date < %s OR (date = %s AND id < %s))
         ORDER BY date DESC, id DESC
         LIMIT 1
         """,
@@ -158,7 +180,7 @@ def prev_for(conn: sqlite3.Connection, row: sqlite3.Row):
     ).fetchone()
 
 
-def make_item(row: sqlite3.Row, prev: Optional[sqlite3.Row]) -> dict:
+def make_item(row: dict, prev: Optional[dict]) -> dict:
     reps_delta: Optional[int] = None
     weight_delta: Optional[float] = None
 
@@ -215,11 +237,11 @@ def get_day(date: str):
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT * FROM exercises WHERE date = ? ORDER BY id", (date,)
+            "SELECT * FROM exercises WHERE date = %s ORDER BY id", (date,)
         ).fetchall()
         items = [make_item(r, prev_for(conn, r)) for r in rows]
         nd = conn.execute(
-            "SELECT * FROM workout_days WHERE date = ?", (date,)
+            "SELECT * FROM workout_days WHERE date = %s", (date,)
         ).fetchone()
         notes = {
             "comment": nd["comment"] if nd else None,
@@ -243,9 +265,9 @@ def get_month(year: int, month: int):
     try:
         rows = conn.execute(
             """
-            SELECT date FROM exercises    WHERE substr(date, 1, 7) = ?
+            SELECT date FROM exercises    WHERE substr(date, 1, 7) = %s
             UNION
-            SELECT date FROM workout_days WHERE substr(date, 1, 7) = ?
+            SELECT date FROM workout_days WHERE substr(date, 1, 7) = %s
             ORDER BY date
             """,
             (prefix, prefix),
@@ -265,7 +287,7 @@ def get_weights(year: int, month: int):
         rows = conn.execute(
             """
             SELECT date, body_weight FROM workout_days
-            WHERE substr(date, 1, 7) = ? AND body_weight IS NOT NULL
+            WHERE substr(date, 1, 7) = %s AND body_weight IS NOT NULL
             ORDER BY date
             """,
             (prefix,),
@@ -298,13 +320,13 @@ def save_day_notes(payload: DayNotesIn):
     try:
         if (not comment and not started_at and not finished_at
                 and body_weight is None and workout_type is None and difficulty is None):
-            conn.execute("DELETE FROM workout_days WHERE date = ?", (payload.date,))
+            conn.execute("DELETE FROM workout_days WHERE date = %s", (payload.date,))
         else:
             conn.execute(
                 """
                 INSERT INTO workout_days
                     (date, comment, started_at, finished_at, body_weight, workout_type, difficulty)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT(date) DO UPDATE SET
                     comment      = excluded.comment,
                     started_at   = excluded.started_at,
@@ -339,15 +361,17 @@ def add_exercise(payload: ExerciseIn):
     conn = get_db()
     try:
         cur = conn.execute(
-            """INSERT INTO exercises
+            """
+            INSERT INTO exercises
                (date, name, name_key, sets, reps, reps_detail, weight, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id""",
             (payload.date, name, norm(name), sets, avg_reps, detail, payload.weight,
              datetime.now().isoformat(timespec="seconds")),
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM exercises WHERE id = ?",
-                           (cur.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM exercises WHERE id = %s",
+                           (cur.fetchone()[0],)).fetchone()
         return make_item(row, prev_for(conn, row))
     finally:
         conn.close()
@@ -357,7 +381,7 @@ def add_exercise(payload: ExerciseIn):
 def delete_exercise(item_id: int):
     conn = get_db()
     try:
-        cur = conn.execute("DELETE FROM exercises WHERE id = ?", (item_id,))
+        cur = conn.execute("DELETE FROM exercises WHERE id = %s", (item_id,))
         conn.commit()
     finally:
         conn.close()
@@ -374,7 +398,7 @@ def get_summary():
         items = []
         for k in keys:
             last = conn.execute(
-                "SELECT * FROM exercises WHERE name_key = ? ORDER BY date DESC, id DESC LIMIT 1",
+                "SELECT * FROM exercises WHERE name_key = %s ORDER BY date DESC, id DESC LIMIT 1",
                 (k["name_key"],),
             ).fetchone()
             items.append({

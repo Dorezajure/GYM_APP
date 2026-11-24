@@ -1,2 +1,4 @@
 fastapi>=0.110
 uvicorn[standard]>=0.27
+gunicorn>=22.0
+psycopg[binary]>=3.1
