@@ -11,6 +11,17 @@
 <meta name="apple-mobile-web-app-title" content="Дневник тренировок">
 <style>
   *{box-sizing:border-box}
+  .splash{position:fixed;inset:0;z-index:9999;background:#fff;
+          display:flex;align-items:center;justify-content:center;
+          transition:opacity .4s ease, visibility .4s ease}
+  .splash.hide{opacity:0;visibility:hidden}
+  .splash-logo{width:96px;height:96px;border-radius:22px;
+               animation:splash-pop .8s ease}
+  @keyframes splash-pop{
+    0%{transform:scale(.6);opacity:0}
+    60%{transform:scale(1.08);opacity:1}
+    100%{transform:scale(1);opacity:1}
+  }
   :root{
     --bg:#f4f5f7;
     --card:#ffffff;
@@ -324,6 +335,9 @@
 </style>
 </head>
 <body>
+<div class="splash" id="splash">
+  <img src="icon-180.png" alt="Дневник тренировок" class="splash-logo">
+</div>
 <div class="wrap">
   <h1>Дневник тренировок</h1>
   <div class="sub">Выбери день, запиши упражнения, отметь время, вес и самочувствие. Улучшения подсвечиваются зелёным с приростом.</div>
@@ -963,6 +977,19 @@ updateCompactDate();
 loadMonth();
 loadDay();
 loadSummary();
+
+// Скрыть сплеш-экран после загрузки содержимого (и страховка по таймеру)
+(function hideSplash() {
+  const splash = $('splash');
+  if (!splash) return;
+  const doHide = () => {
+    splash.classList.add('hide');
+    setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+  };
+  if (document.readyState === 'complete') doHide();
+  else window.addEventListener('load', doHide);
+  setTimeout(doHide, 2500); // страховка, если данные грузятся дольше
+})();
 
 // Восстановление несохранённых данных после ошибки сети/сервера
 (function restorePending() {
