@@ -100,6 +100,24 @@ def init_db() -> None:
             )
             """
         )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cardio_sessions (
+                id            SERIAL PRIMARY KEY,
+                date          TEXT NOT NULL,
+                device        TEXT NOT NULL,
+                duration_min  INTEGER,
+                speed         DOUBLE PRECISION,
+                inclination   DOUBLE PRECISION,
+                load_level    DOUBLE PRECISION,
+                created_at    TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_cardio_date ON cardio_sessions(date)"
+        )
         ensure_column(conn, "exercises",    "reps_detail",  "TEXT")
         ensure_column(conn, "workout_days", "body_weight",  "DOUBLE PRECISION")
         ensure_column(conn, "workout_days", "workout_type", "TEXT")
@@ -230,6 +248,15 @@ class DayNotesIn(BaseModel):
     difficulty: Optional[str] = None
 
 
+class CardioIn(BaseModel):
+    date: str
+    device: str
+    duration_min: Optional[int] = None
+    speed: Optional[float] = None
+    inclination: Optional[float] = None
+    load_level: Optional[float] = None
+
+
 # ---------------------------------------------------------------- API: дни
 @app.get("/api/day")
 def get_day(date: str):
@@ -251,9 +278,12 @@ def get_day(date: str):
             "workout_type": nd["workout_type"] if nd else None,
             "difficulty": nd["difficulty"] if nd else None,
         }
+        cardio = conn.execute(
+            "SELECT * FROM cardio_sessions WHERE date = %s ORDER BY id", (date,)
+        ).fetchall()
     finally:
         conn.close()
-    return {"date": date, "items": items, "notes": notes}
+    return {"date": date, "items": items, "notes": notes, "cardio": cardio}
 
 
 @app.get("/api/month")
@@ -341,6 +371,60 @@ def save_day_notes(payload: DayNotesIn):
         conn.commit()
     finally:
         conn.close()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- API: кардио
+@app.post("/api/cardio")
+def add_cardio(payload: CardioIn):
+    check_date(payload.date)
+    device = (payload.device or "").strip()
+    if device not in {"treadmill", "elliptical"}:
+        raise HTTPException(400, "Некорректный кардио-тренажёр")
+    if payload.duration_min is not None and not (0 < payload.duration_min <= 600):
+        raise HTTPException(400, "Длительность должна быть 1–600 мин")
+    if payload.speed is not None and not (0 < payload.speed < 60):
+        raise HTTPException(400, "Скорость должна быть больше 0 и меньше 60")
+    if payload.inclination is not None and not (0 <= payload.inclination <= 40):
+        raise HTTPException(400, "Наклон должен быть 0–40")
+    if payload.load_level is not None and not (0 <= payload.load_level <= 99):
+        raise HTTPException(400, "Нагрузка должна быть 0–99")
+
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO cardio_sessions
+                (date, device, duration_min, speed, inclination, load_level, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (payload.date, device, payload.duration_min, payload.speed,
+             payload.inclination, payload.load_level,
+             datetime.now().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM cardio_sessions WHERE id = %s",
+            (cur.fetchone()["id"],),
+        ).fetchone()
+    finally:
+        conn.close()
+    return row
+
+
+@app.delete("/api/cardio/{item_id}")
+def delete_cardio(item_id: int):
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "DELETE FROM cardio_sessions WHERE id = %s", (item_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Запись не найдена")
     return {"ok": True}
 
 

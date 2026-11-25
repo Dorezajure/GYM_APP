@@ -170,6 +170,16 @@
   .time-group{display:inline-flex;align-items:center;gap:8px}
   .time-row label{font-size:13px;color:var(--muted)}
   .time-row input[type=time]{padding:7px 10px;width:120px}
+  .cardio-form{margin-top:10px}
+  .cardio-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .cardio-row select{padding:7px 10px;font:inherit}
+  .cardio-row input{width:88px;flex:0 1 auto}
+  .cardio-add{padding:7px 12px}
+  .cardio-list{margin-top:10px}
+  .cardio-item{display:flex;gap:10px;align-items:center;justify-content:space-between;
+               padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;
+               font-size:13px}
+  .cardio-item .del{width:32px;height:32px;font-size:18px;flex-shrink:0}
   .btn-mini{font:inherit;font-size:12.5px;padding:6px 11px;border:1px solid var(--border);
             border-radius:8px;background:#fff;cursor:pointer;color:var(--text)}
   .btn-mini:hover{background:#f3f4f6}
@@ -177,6 +187,16 @@
   .btn-mini.start:hover{background:var(--up-bg)}
   .btn-mini.end{border-color:var(--danger);color:var(--danger)}
   .btn-mini.end:hover{background:var(--danger-bg)}
+  .time-ico{display:inline-block;vertical-align:-1px}
+  .ico-start{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;
+             border-bottom:11px solid var(--up-fg);transform:rotate(90deg)}
+  .ico-end{width:10px;height:10px;background:var(--danger)}
+  .time-group{transition:background-color .3s ease, border-color .3s ease, box-shadow .3s ease;
+              padding:6px 8px;border-radius:9px;border:1px solid transparent}
+  .time-group.active-start{background:var(--up-bg);border-color:var(--up-fg);
+              box-shadow:0 0 0 3px rgba(21,128,61,.15)}
+  .time-group.active-end{background:var(--danger-bg);border-color:var(--danger);
+              box-shadow:0 0 0 3px rgba(220,38,38,.15)}
   .duration{margin-left:auto;font-size:13px;color:var(--muted)}
   .duration b{color:var(--text);font-weight:600}
   .notes-block textarea{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--border);
@@ -274,6 +294,10 @@
     .time-group{display:grid;grid-template-columns:auto 1fr auto;gap:8px 6px;align-items:center}
     .time-row label{font-size:12.5px}
     .time-row input[type=time]{width:100%}
+    .cardio-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .cardio-row select{grid-column:1/-1}
+    .cardio-row input{width:100%}
+    .cardio-add{grid-column:1/-1}
     .notes-block textarea{min-height:92px}
     .notes-actions{flex-direction:column;align-items:stretch}
     .btn-save{width:100%;min-height:48px}
@@ -374,21 +398,38 @@
 
         <h3>Время тренировки</h3>
         <div class="time-row">
-          <span class="time-group">
-            <label for="startTime">Начало</label>
+          <span class="time-group" id="startGroup">
+            <label for="startTime">Начало <span class="time-ico ico-start" aria-hidden="true"></span></label>
             <input type="time" id="startTime">
-            <button class="btn-mini start" type="button" id="btnStart" title="Поставить текущее время">▶ Старт</button>
           </span>
-          <span class="time-group">
-            <label for="endTime">Конец</label>
+          <span class="time-group" id="endGroup">
+            <label for="endTime">Конец <span class="time-ico ico-end" aria-hidden="true"></span></label>
             <input type="time" id="endTime">
-            <button class="btn-mini end" type="button" id="btnEnd" title="Поставить текущее время">■ Финиш</button>
           </span>
           <span class="duration" id="duration"></span>
         </div>
 
         <h3>Самочувствие</h3>
         <textarea id="comment" placeholder="Как прошла тренировка, самочувствие, что понравилось/нет…"></textarea>
+
+        <h3>Кардио</h3>
+        <div class="cardio-form">
+          <div class="cardio-row">
+            <select id="cardioDevice">
+              <option value="treadmill">Дорожка</option>
+              <option value="elliptical">Элипс</option>
+            </select>
+            <input type="number" id="cardioDuration" inputmode="numeric" min="1" max="600"
+                   placeholder="Длит, мин">
+            <input type="number" id="cardioSpeed" inputmode="decimal" min="0.1" max="59"
+                   placeholder="Скор-ть">
+            <input type="number" id="cardioExtra" inputmode="decimal" min="0"
+                   placeholder="Наклон/надгрузка">
+            <button class="btn-mini cardio-add" type="button" id="cardioAdd">+ Добавить</button>
+          </div>
+          <div class="cardio-list" id="cardioList"></div>
+        </div>
+
         <div class="notes-actions">
           <button class="btn btn-save" type="button" id="btnSaveNotes">Сохранить заметку</button>
           <span class="notes-status" id="notesStatus"></span>
@@ -610,6 +651,7 @@ function renderNotes(notes) {
   $('difficulty').value = notes?.difficulty || '';
   updateDifficultyStyle();
   updateDuration();
+  updateTimeGlow();
   lastSavedNotesSig = notesSignature();
 }
 function flashSaved() {
@@ -660,8 +702,6 @@ async function saveNotes(showToast) {
   } catch (e) { console.error(e); }
 }
 
-$('btnStart').onclick = async () => { $('startTime').value = nowHHMM(); updateDuration(); await saveNotes(true); };
-$('btnEnd').onclick   = async () => { $('endTime').value = nowHHMM();   updateDuration(); await saveNotes(true); };
 $('btnSaveNotes').onclick = () => saveNotes(true);
 $('startTime').addEventListener('change', () => saveNotes(false));
 $('endTime').addEventListener('change',   () => saveNotes(false));
@@ -671,12 +711,38 @@ $('bodyWeight').addEventListener('change', () => saveNotes(false));
 $('startTime').addEventListener('input', updateDuration);
 $('endTime').addEventListener('input',   updateDuration);
 
+let endGlowTimer = null;
+function updateTimeGlow() {
+  const start = $('startTime').value;
+  const end = $('endTime').value;
+  clearTimeout(endGlowTimer);
+
+  if (start && !end) {
+    $('startGroup').classList.add('active-start');
+    $('endGroup').classList.remove('active-end');
+  } else if (end) {
+    $('startGroup').classList.remove('active-start');
+    $('endGroup').classList.add('active-end');
+    endGlowTimer = setTimeout(() => {
+      $('endGroup').classList.remove('active-end');
+    }, 10000);
+  } else {
+    $('startGroup').classList.remove('active-start');
+    $('endGroup').classList.remove('active-end');
+  }
+}
+$('startTime').addEventListener('input', updateTimeGlow);
+$('endTime').addEventListener('input',   updateTimeGlow);
+$('startTime').addEventListener('change', updateTimeGlow);
+$('endTime').addEventListener('change',   updateTimeGlow);
+
 async function loadDay() {
   $('dayTitle').textContent = `${fmtHuman(selectedDate)} · ${weekdayName(selectedDate)}`;
   const res = await fetch('/api/day?date=' + selectedDate);
   const data = await res.json();
   renderTable(data.items);
   renderNotes(data.notes || {});
+  renderCardio(data.cardio || []);
 }
 
 async function loadSummary() {
@@ -690,6 +756,58 @@ async function loadSummary() {
   });
   updateHint();
 }
+
+const CARDIO_DEVICES = { treadmill: 'Дорожка', elliptical: 'Элипс' };
+
+function renderCardio(list) {
+  const box = $('cardioList');
+  if (!list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = list.map(c => {
+    const extra = c.inclination != null
+      ? `, наклон ${fmtNum(c.inclination)}°`
+      : (c.load_level != null ? `, нагрузка ${fmtNum(c.load_level)}` : '');
+    const dur = c.duration_min != null ? `${c.duration_min} мин` : '';
+    const speed = c.speed != null ? `, ${fmtNum(c.speed)} км/ч` : '';
+    return `<div class="cardio-item" data-id="${c.id}">
+      <span>${CARDIO_DEVICES[c.device] || c.device}: ${dur}${speed}${extra}</span>
+      <button class="del" title="Удалить">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function parseNum(v) { if (v == null || String(v).trim() === '') return null; const n = Number(String(v).replace(',', '.')); return isNaN(n) ? null : n; }
+
+$('cardioAdd').addEventListener('click', async () => {
+  const device = $('cardioDevice').value;
+  const duration = parseNum($('cardioDuration').value);
+  const speed = parseNum($('cardioSpeed').value);
+  const extra = parseNum($('cardioExtra').value);
+  const payload = {
+    date: selectedDate, device,
+    duration_min: duration, speed,
+    inclination: device === 'treadmill' ? extra : null,
+    load_level: device === 'elliptical' ? extra : null,
+  };
+  const res = await fetch('/api/cardio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || 'Не удалось сохранить кардио'); return;
+  }
+  $('cardioDuration').value = ''; $('cardioSpeed').value = ''; $('cardioExtra').value = '';
+  loadDay(); loadMonth();
+});
+
+$('cardioList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.del');
+  if (!btn) return;
+  const id = btn.closest('.cardio-item').dataset.id;
+  await fetch('/api/cardio/' + id, { method: 'DELETE' });
+  loadDay();
+});
 function updateHint() {
   const rec = summary.get(norm($('name').value));
   if (!rec) { $('lastHint').textContent = ''; return; }
