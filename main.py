@@ -509,3 +509,11 @@ def serve_index():
             f"Файл index.html не найден рядом с main.py (ожидался: {INDEX_HTML_PATH})"
         )
     return FileResponse(INDEX_HTML_PATH, media_type="text/html")
+
+
+@app.get("/icon-180.png", include_in_schema=False)
+def serve_icon():
+    icon = os.path.join(BASE_DIR, "icon-180.png")
+    if not os.path.exists(icon):
+        raise HTTPException(404, "Иконка не найдена")
+    return FileResponse(icon, media_type="image/png")
