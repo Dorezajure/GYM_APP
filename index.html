@@ -154,6 +154,11 @@
   .form-help code{background:#f3f4f6;padding:1px 5px;border-radius:4px;
                   font:inherit;font-size:12px;color:var(--text)}
   .hint{font-size:12.5px;color:var(--muted);min-height:18px;margin-bottom:10px}
+  .suggest{color:var(--accent);cursor:pointer;font-weight:600}
+  .suggest:hover{text-decoration:underline}
+  .suggest .tag{display:inline-block;margin-left:6px;font-size:11px;font-weight:600;
+                padding:1px 7px;border-radius:20px;color:#fff}.suggest .tag{background:var(--accent);text-decoration:none}
+  .suggest:hover .tag{text-decoration:none}
 
   /* ====== Таблица упражнений ====== */
   table{width:100%;border-collapse:collapse;font-size:14px}
@@ -394,6 +399,7 @@
       <div class="form-help">
         💡 Повторения: одно число (для всех подходов) или список через запятую/пробел — например <code>12,10,8,6</code>. В историю сохранится среднее.
       </div>
+      <div class="hint" id="suggestHint"></div>
       <div class="hint" id="lastHint"></div>
       <div class="hint" id="exerciseStatus" style="color:#dc2626"></div>
 
@@ -827,13 +833,52 @@ $('cardioList').addEventListener('click', async (e) => {
   await fetch('/api/cardio/' + id, { method: 'DELETE' });
   loadDay();
 });
+function normish(s) {
+  return String(s).toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+}
+function fuzzyScore(needle, hay) {
+  needle = normish(needle); hay = normish(hay);
+  if (!needle) return 0;
+  if (hay === needle) return 3;
+  if (hay.includes(needle) || needle.includes(hay)) return 2;
+  // общие последовательные символы: подобие "жим" и "жим лёжа"
+  let i = 0, j = 0;
+  while (i < needle.length && j < hay.length) {
+    if (needle[i] === hay[j]) i++;
+    j++;
+  }
+  return i / needle.length;
+}
 function updateHint() {
-  const rec = summary.get(norm($('name').value));
-  if (!rec) { $('lastHint').textContent = ''; return; }
-  let repsStr = rec.reps != null ? String(rec.reps) : '—';
-  if (rec.reps_detail) repsStr = `${rec.reps} (${rec.reps_detail})`;
-  $('lastHint').textContent =
-    `Прошлый раз (${fmtHuman(rec.date)}): ${rec.sets ?? '—'} подх. × ${repsStr} повт. · ${rec.weight ?? '—'} кг`;
+  const input = $('name').value;
+  const rec = summary.get(norm(input));
+  const sg = $('suggestHint');
+  if (rec) {
+    sg.textContent = '';
+    let repsStr = rec.reps != null ? String(rec.reps) : '—';
+    if (rec.reps_detail) repsStr = `${rec.reps} (${rec.reps_detail})`;
+    $('lastHint').textContent =
+      `Прошлый раз (${fmtHuman(rec.date)}): ${rec.sets ?? '—'} подх. × ${repsStr} повт. · ${rec.weight ?? '—'} кг`;
+    return;
+  }
+  // точного совпадения нет — ищем похожее
+  if (!input.trim() || summary.size === 0) {
+    sg.textContent = ''; $('lastHint').textContent = ''; return;
+  }
+  let best = null, bestScore = 0;
+  summary.forEach((r, key) => {
+    const sc = fuzzyScore(input, r.name);
+    if (sc > bestScore && sc > 0.5) { bestScore = sc; best = r; }
+  });
+  if (!best) { sg.textContent = ''; $('lastHint').textContent = ''; return; }
+  $('lastHint').textContent = '';
+  sg.innerHTML = `<span class="suggest" title="Нажмите, чтобы подставить название">«${best.name}» — подставить</span>`;
+  sg.querySelector('.suggest').onclick = () => {
+    $('name').value = best.name;
+    sg.textContent = '';
+    updateHint();
+    $('sets').focus();
+  };
 }
 $('name').addEventListener('input', updateHint);
 
