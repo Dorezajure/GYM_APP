@@ -649,16 +649,16 @@ def get_heatmap(year: int, month: int):
 #   "total"    всего дней с активностью
 #   "sets"     всего подходов
 #   "volume_kg" всего объёма в кг (sets*reps*weight)
-# image — путь к локальному файлу /static/... (гифка/фото). Пусто = декоративный градиент+эмодзи.
+# image — больше не используется: стикер-бейдж с эмодзи формируется на фронтенде (image = None).
 ACHIEVEMENTS = [
     {"key": "first_workout", "title": "Первая тренировка", "desc": "Записан первый день активности", "icon": "🔥", "metric": "total", "goal": 1, "image": None},
     {"key": "streak_3",      "title": "Разгорелся",       "desc": "3 дня подряд без пропусков", "icon": "🔥", "metric": "streak", "goal": 3, "image": None},
-    {"key": "streak_7",      "title": "Серия — неделя",   "desc": "7 дней подряд без пропусков", "icon": "⚡", "metric": "streak", "goal": 7, "image": "/static/voitenko_streak.gif"},
-    {"key": "streak_14",     "title": "Две недели",       "desc": "14 дней подряд без пропусков", "icon": "💎", "metric": "streak", "goal": 14, "image": "/static/voitenko_streak.gif"},
-    {"key": "streak_30",     "title": "Месяц в строю",    "desc": "30 дней подряд без пропусков", "icon": "👑", "metric": "streak", "goal": 30, "image": "/static/voitenko_streak.gif"},
+    {"key": "streak_7",      "title": "Серия — неделя",   "desc": "7 дней подряд без пропусков", "icon": "⚡", "metric": "streak", "goal": 7, "image": None},
+    {"key": "streak_14",     "title": "Две недели",       "desc": "14 дней подряд без пропусков", "icon": "💎", "metric": "streak", "goal": 14, "image": None},
+    {"key": "streak_30",     "title": "Месяц в строю",    "desc": "30 дней подряд без пропусков", "icon": "👑", "metric": "streak", "goal": 30, "image": None},
     {"key": "total_10",      "title": "Десятка",          "desc": "10 тренировочных дней всего", "icon": "🎯", "metric": "total", "goal": 10, "image": None},
     {"key": "total_25",      "title": "Четверть сотни",   "desc": "25 тренировочных дней всего", "icon": "🚀", "metric": "total", "goal": 25, "image": None},
-    {"key": "total_50",      "title": "Полусотня",        "desc": "50 тренировочных дней всего", "icon": "🏆", "metric": "total", "goal": 50, "image": "/static/record.gif"},
+    {"key": "total_50",      "title": "Полусотня",        "desc": "50 тренировочных дней всего", "icon": "🏆", "metric": "total", "goal": 50, "image": None},
     {"key": "total_100",     "title": "Сотня",            "desc": "100 тренировочных дней всего", "icon": "💯", "metric": "total", "goal": 100, "image": None},
     {"key": "volume_1000",   "title": "Тонна",            "desc": "1000 кг общего объёма в подходах", "icon": "🏋️", "metric": "volume_kg", "goal": 1000, "image": None},
     {"key": "volume_10000",  "title": "10 тонн",          "desc": "10 000 кг общего объёма", "icon": "🎖️", "metric": "volume_kg", "goal": 10000, "image": None},
@@ -776,7 +776,7 @@ def get_achievements():
                 pr_map[r["name_key"]] = {"name": r["name"], "weight": r["weight"], "date": r["date"]}
         pr_list = sorted(
             ({"name_key": k, "name": v["name"], "weight": v["weight"], "date": v["date"],
-              "image": "/static/record.gif"}
+              "image": None}
              for k, v in pr_map.items()),
             key=lambda x: x["weight"], reverse=True,
         )[:10]

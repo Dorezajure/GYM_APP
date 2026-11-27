@@ -340,9 +340,12 @@
   .ach-modal-card{position:relative;max-width:420px;width:100%;background:var(--card);border-radius:20px 20px 0 0;overflow:hidden;box-shadow:0 -12px 40px rgba(0,0,0,.35);z-index:2;animation:achUp .28s ease}
   @keyframes achUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
   .ach-modal-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border:none;background:rgba(0,0,0,.35);color:#fff;border-radius:50%;font-size:15px;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center}
-  .ach-modal-media{width:100%;height:210px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0f1115}
+  .ach-modal-media{width:100%;height:210px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(135deg,var(--card),var(--bg))}
   .ach-modal-media img,.ach-modal-media video{width:100%;height:100%;object-fit:cover}
-  .ach-modal-media .ach-fallback{display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;font-size:64px}
+  .ach-modal-media .ach-fallback{display:flex;flex-direction:column;align-items:center;gap:10px;color:#fff;animation:achPopIn .35s ease}
+  .ach-modal-media .ach-sticker{width:128px;height:128px;display:flex;align-items:center;justify-content:center;font-size:72px;line-height:1;border-radius:38% 62% 55% 45% / 50% 40% 60% 50%;background:linear-gradient(160deg,#fbbf24,#f97316);box-shadow:0 14px 34px rgba(249,115,22,.4),inset 0 2px 6px rgba(255,255,255,.45)}
+  .ach-modal-media .ach-sticker-badge{font-size:12.5px;font-weight:700;letter-spacing:.5px;color:#fff;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:999px}
+  @keyframes achPopIn{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
   .ach-modal-body{padding:18px 20px 26px;text-align:center}
   .ach-modal-icon{font-size:40px;line-height:1;margin-bottom:8px}
   .ach-modal-title{font-size:20px;font-weight:700;color:var(--text)}
@@ -1306,7 +1309,7 @@ function achMediaHtml(a) {
       return `<img src="${a.image}" alt="${a.title}" loading="lazy">`;
     }
   }
-  return `<div class="ach-fallback"><span>${a.icon}</span></div>`;
+  return `<div class="ach-fallback"><div class="ach-sticker">${a.icon}</div><div class="ach-sticker-badge">Достижение</div></div>`;
 }
 
 function openAchievementModal(a) {
@@ -1332,10 +1335,10 @@ function closeAchievementModal() {
 }
 
 function openPrModal(pr) {
-  // Попап «Новый рекорд!» по упражнению — с гифкой record.gif.
+  // Попап «Новый рекорд!» по упражнению — стикер (фолбек)
   const modal = $ach('achModal');
   if (!modal) return;
-  $ach('achModalMedia').innerHTML = achMediaHtml(Object.assign({}, pr, { title: 'Новый рекорд!' }));
+  $ach('achModalMedia').innerHTML = achMediaHtml(Object.assign({}, pr, { title: 'Новый рекорд!', icon: '🥇' }));
   $ach('achModalIcon').textContent = '🥇';
   $ach('achModalTitle').textContent = 'Новый рекорд!';
   $ach('achModalDesc').textContent = `${pr.name || 'Упражнение'} — рекордный вес ${formatKg(pr.weight)} кг`;
