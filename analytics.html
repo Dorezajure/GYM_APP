@@ -79,6 +79,21 @@
   }
   .month-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
 
+  .controls{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .sel{
+    appearance:none;-webkit-appearance:none;
+    font:inherit;font-size:13px;color:var(--text);
+    border:1px solid var(--border);border-radius:10px;
+    background:var(--card);padding:7px 26px 7px 10px;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat;background-position:right 9px center;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .controls .month-title{margin-bottom:0;margin-left:auto}
+
   .blocks{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
   @media (min-width:820px){
     .blocks{grid-template-columns:1fr 1fr}
@@ -127,7 +142,11 @@
   </div>
   <div class="sub">Прогресс по каждому упражнению за текущий месяц: вес каждого подхода и сводка изменений к концу месяца.</div>
 
-  <div class="month-title"><span class="dot"></span><span id="monthLabel"></span></div>
+  <div class="controls">
+    <select id="monthSel" class="sel" aria-label="Месяц"></select>
+    <select id="yearSel" class="sel" aria-label="Год"></select>
+    <div class="month-title"><span class="dot"></span><span id="monthLabel"></span></div>
+  </div>
 
   <div id="content">
     <div class="loading" id="loading">Загружаем данные…</div>
@@ -158,7 +177,7 @@ const MONTHS = ["январь","февраль","март","апрель","ма�
 function titleCase(m){ return m[0].toUpperCase() + m.slice(1); }
 
 function fmtW(w){
-  return String(+w).replace(/\.?0+$/,"");
+  return String(Math.round(+w));
 }
 
 /* ---------- рендер одного графика ---------- */
@@ -276,20 +295,51 @@ function svg(pts){
 }
 
 function monthDays(){
+  return new Date(selYear(), selMonth(), 0).getDate();
+}
+
+/* ---------- выбор месяца/года ---------- */
+function selMonth(){ return parseInt($("#monthSel").value, 10); }
+function selYear(){ return parseInt($("#yearSel").value, 10); }
+
+function daysInMonthLabel(){
+  return `${titleCase(MONTHS[selMonth()-1])} ${selYear()}`;
+}
+
+function initSelects(){
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const curMonth = now.getMonth();   // 0-базированный
+  const curYear  = now.getFullYear();
+  const yearSelEl = $("#yearSel");
+  // год: от следующего до 8 лет назад
+  for (let y = curYear + 1; y >= curYear - 8; y--){
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = String(y);
+    if (y === curYear) opt.selected = true;
+    yearSelEl.appendChild(opt);
+  }
+  // месяцы
+  MONTHS.forEach((m, i) => {
+    const opt = document.createElement("option");
+    opt.value = i + 1;
+    opt.textContent = titleCase(m);
+    if (i === curMonth) opt.selected = true;
+    $("#monthSel").appendChild(opt);
+  });
+  $("#monthSel").addEventListener("change", loadAnalytics);
+  $("#yearSel").addEventListener("change", loadAnalytics);
 }
 
 /* ---------- загрузка ---------- */
-function daysInMonthLabel(){
-  const now = new Date();
-  return `${titleCase(MONTHS[now.getMonth()])} ${now.getFullYear()}`;
-}
-
 function loadAnalytics(){
-  const now = new Date();
-  const year = now.getFullYear(), month = now.getMonth()+1;
+  const year = selYear(), month = selMonth();
   $("#monthLabel").textContent = daysInMonthLabel();
+  $("#blocks").innerHTML = "";
+  $("#empty").style.display = "none";
+  $("#loading").style.display = "block";
+  $("#loading").className = "loading";
+  $("#loading").textContent = "Загружаем данные…";
 
   fetch(`/api/analytics?year=${year}&month=${month}`)
     .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -300,7 +350,6 @@ function loadAnalytics(){
         $("#empty").style.display = "block";
         return;
       }
-      $("#blocks").innerHTML = "";
       items.forEach(renderBlock);
     })
     .catch(err => {
@@ -313,10 +362,11 @@ function loadAnalytics(){
 
 /* ---------- навигация и старт ---------- */
 $("#backBtn").addEventListener("click", () => {
-  window.location.href = "index.html";
+  window.location.href = "/";
 });
 
 window.addEventListener("load", () => {
+  initSelects();
   loadAnalytics();
 });
 
