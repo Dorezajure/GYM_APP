@@ -210,8 +210,8 @@
     <div class="hm-head">
       <div class="hm-title">Активность <span class="pill">26 нед.</span></div>
       <div class="seg" id="hmTabs">
-        <button type="button" data-metric="sessions" class="on">График</button>
-        <button type="button" data-metric="sets">Объём</button>
+        <button type="button" data-metric="sets" class="on">Объём</button>
+        <button type="button" data-metric="sessions">График</button>
         <button type="button" data-metric="days">Дни</button>
       </div>
     </div>
@@ -446,7 +446,7 @@ function loadAnalytics(){
 /* ---------- Тепловая карта ---------- */
 const DOW = ["П","В","С","Ч","Пт","Сб","Вс"];
 let hmData = null;
-let hmMetric = "sessions";
+let hmMetric = "sets";
 
 function monthShort(iso){ // '2026-11-27' -> месяц/год
   const [,m] = iso.split("-");
