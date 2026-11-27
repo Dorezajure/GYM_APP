@@ -312,6 +312,51 @@
   .weight-row input{flex:1;max-width:160px}
   .weight-unit{color:var(--muted);font-size:14px}
 
+  /* ====== Достижения ====== */
+  .achievements-card{margin-top:18px}
+  .achievements-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .achievements-head h3{margin:0;font-size:16px;font-weight:600}
+  .streak-pill{font-size:12.5px;color:var(--accent, #e01d5a);background:color-mix(in srgb, var(--accent,#e01d5a) 12%, transparent);border:1px solid color-mix(in srgb, var(--accent,#e01d5a) 35%, transparent);border-radius:999px;padding:4px 12px;font-weight:600}
+  .ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+  .ach-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer;text-align:center;transition:transform .15s ease, box-shadow .15s ease}
+  .ach-item:active{transform:scale(.97)}
+  .ach-item .ach-ico{font-size:28px;line-height:1}
+  .ach-item .ach-name{font-size:12.5px;font-weight:600;color:var(--text)}
+  .ach-item .ach-sub{font-size:11px;color:var(--muted)}
+  .ach-item.locked{opacity:.42;filter:grayscale(.7);cursor:default}
+  .ach-item.locked .ach-ico{filter:grayscale(1)}
+  .ach-item.earned{border-color:color-mix(in srgb, var(--accent,#e01d5a) 40%, transparent)}
+  .ach-empty{font-size:13.5px;color:var(--muted);padding:6px 2px}
+  .ach-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+  .ach-legend span{display:inline-flex;align-items:center;gap:5px}
+  .ach-legend i{width:12px;height:12px;border-radius:4px;border:1px solid var(--border);display:inline-block}
+  .ach-legend .lg-earned i{background:color-mix(in srgb, var(--accent,#e01d5a) 30%, transparent);border-color:color-mix(in srgb, var(--accent,#e01d5a) 45%, transparent)}
+  .ach-legend .lg-locked i{opacity:.35;filter:grayscale(.8)}
+
+  /* ====== Попап достижения ====== */
+  .ach-modal{position:fixed;inset:0;z-index:200;display:none;align-items:flex-end;justify-content:center}
+  .ach-modal.open{display:flex}
+  .ach-modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+  .ach-modal-card{position:relative;max-width:420px;width:100%;background:var(--card);border-radius:20px 20px 0 0;overflow:hidden;box-shadow:0 -12px 40px rgba(0,0,0,.35);z-index:2;animation:achUp .28s ease}
+  @keyframes achUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .ach-modal-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border:none;background:rgba(0,0,0,.35);color:#fff;border-radius:50%;font-size:15px;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center}
+  .ach-modal-media{width:100%;height:210px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0f1115}
+  .ach-modal-media img,.ach-modal-media video{width:100%;height:100%;object-fit:cover}
+  .ach-modal-media .ach-fallback{display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;font-size:64px}
+  .ach-modal-body{padding:18px 20px 26px;text-align:center}
+  .ach-modal-icon{font-size:40px;line-height:1;margin-bottom:8px}
+  .ach-modal-title{font-size:20px;font-weight:700;color:var(--text)}
+  .ach-modal-desc{font-size:14px;color:var(--muted);margin-top:6px}
+  .ach-modal-meta{font-size:12.5px;color:var(--muted);margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+
+  @media (min-width: 700px){
+    .ach-modal{align-items:center;padding:20px}
+    .ach-modal-card{border-radius:20px}
+  }
+  @media (max-width: 520px){
+    .ach-grid{grid-template-columns:repeat(auto-fill,minmax(122px,1fr))}
+  }
+
   /* ====== Диаграмма ====== */
   .chart-card{margin-top:18px}
   .chart-head{display:flex;align-items:center;justify-content:space-between;
@@ -550,6 +595,16 @@
     </div>
   </div>
 
+  <div class="card achievements-card" id="achievementsCard">
+    <div class="achievements-head">
+      <h3>🏅 Достижения</h3>
+      <span class="streak-pill" id="streakPill"></span>
+    </div>
+    <div class="ach-grid" id="achGrid"></div>
+    <div class="ach-empty" id="achEmpty" style="display:none">Пока нет достижений. Запиши первую тренировку — и всё начнётся 🔥</div>
+    <div class="ach-legend" id="achLegend"></div>
+  </div>
+
   <div class="card chart-card">
     <div class="chart-head">
       <h3>Динамика веса за <span id="chartMonthLabel"></span></h3>
@@ -558,6 +613,21 @@
     <div class="chart-wrap" id="chartWrap">
       <div class="chart-empty" id="chartEmpty">Нет данных о весе за этот месяц.</div>
       <svg id="weightChart" style="display:none"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Попап достижения -->
+<div class="ach-modal" id="achModal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="ach-modal-backdrop" data-close></div>
+  <div class="ach-modal-card" role="document">
+    <button class="ach-modal-close" data-close type="button" aria-label="Закрыть" title="Закрыть">✕</button>
+    <div class="ach-modal-media" id="achModalMedia"></div>
+    <div class="ach-modal-body">
+      <div class="ach-modal-icon" id="achModalIcon">🏅</div>
+      <div class="ach-modal-title" id="achModalTitle"></div>
+      <div class="ach-modal-desc" id="achModalDesc"></div>
+      <div class="ach-modal-meta" id="achModalMeta"></div>
     </div>
   </div>
 </div>
@@ -834,6 +904,7 @@ async function saveNotes(showToast) {
     lastSavedNotesSig = sig;
     if (showToast) flashSaved();
     loadMonth();
+    loadAchievements({ checkUnlocks: true });
   } catch (e) { console.error(e); }
 }
 
@@ -1033,6 +1104,7 @@ $('form').addEventListener('submit', async (e) => {
     $('lastHint').textContent = '';
     $('name').focus();
     await Promise.all([loadDay(), loadMonth(), loadSummary()]);
+    loadAchievements({ checkUnlocks: true });
   } catch (e) {
     console.error(e);
     alert('Нет связи с сервером. Данные сохранены на устройстве — при перезагрузке предложу повторить.');
@@ -1044,6 +1116,7 @@ $('form').addEventListener('submit', async (e) => {
 async function removeItem(id) {
   await fetch('/api/exercises/' + id, { method: 'DELETE' });
   await Promise.all([loadDay(), loadMonth(), loadSummary()]);
+  loadAchievements({ checkUnlocks: true });
 }
 
 async function loadWeights() {
@@ -1129,10 +1202,165 @@ window.addEventListener('resize', () => {
   chartResizeTimer = setTimeout(() => { if (chartData.length) renderChart(); }, 150);
 });
 
+// ====== Достижения ======
+let achState = null;
+
+function $ach(id) { return document.getElementById(id); }
+
+function achMetaText(ach) {
+  if (ach.current == null || ach.goal == null) return '';
+  return `${ach.current} / ${ach.goal}`;
+}
+
+function formatKg(n) {
+  if (n == null) return '';
+  return Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(1)));
+}
+
+async function loadAchievements({ checkUnlocks = false } = {}) {
+  try {
+    const res = await fetch('/api/achievements');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const prevKeys = achState && Array.isArray(achState.achievements)
+      ? new Set(achState.achievements.filter(a => a.earned).map(a => a.key))
+      : null;
+    const prevPrs = (achState && Array.isArray(achState.prs)) ? achState.prs : null;
+    achState = data;
+    renderAchievements();
+    // Попап за новые достижения
+    if (checkUnlocks && prevKeys) {
+      (data.achievements || []).forEach(a => {
+        if (a.earned && !prevKeys.has(a.key)) {
+          setTimeout(() => openAchievementModal(a), 350);
+        }
+      });
+    }
+    // Попап за новый рекорд (PR) по упражнению
+    if (checkUnlocks && prevPrs) {
+      const newPrs = data.prs || [];
+      const pr = findNewPr(newPrs, prevPrs);
+      if (pr) {
+        setTimeout(() => openPrModal(pr), 900);
+      }
+    }
+  } catch (e) {
+    console.error('achievements:', e);
+  }
+}
+
+function findNewPr(newPrs, prevPrs) {
+  // Вернуть первую запись PR, которая появилась или выросла относительно прошлого состояния.
+  const prevByKey = {};
+  (prevPrs || []).forEach(p => { prevByKey[p.name_key] = p.weight; });
+  for (const p of (newPrs || [])) {
+    const prevW = prevByKey[p.name_key];
+    if (prevW == null || p.weight > prevW) {
+      return p; // новое упражнение в топе или вырос вес
+    }
+  }
+  return null;
+}
+
+function renderAchievements() {
+  if (!achState) return;
+  const grid = $ach('achGrid');
+  const pill = $ach('streakPill');
+  const empty = $ach('achEmpty');
+  const legend = $ach('achLegend');
+
+  if (pill) {
+    const s = achState.current_streak;
+    pill.textContent = s > 0 ? `🔥 ${s} дн. подряд` : '🔥 0 дн.';
+  }
+  const list = achState.achievements || [];
+  const earnedCount = list.filter(a => a.earned).length;
+  grid.innerHTML = list.map(a => {
+    const cls = a.earned ? 'earned' : 'locked';
+    const meta = a.earned ? achMetaText(a) : '';
+    return `<button type="button" class="ach-item ${cls}" data-key="${a.key}" title="${a.title}">
+      <span class="ach-ico">${a.icon}</span>
+      <span class="ach-name">${a.title}</span>
+      <span class="ach-sub">${a.earned ? meta : ('🕒 ' + a.goal)}</span>
+    </button>`;
+  }).join('');
+  grid.onclick = (e) => {
+    const btn = e.target.closest('.ach-item');
+    if (!btn) return;
+    const a = list.find(x => x.key === btn.dataset.key);
+    if (a) openAchievementModal(a);
+  };
+  empty.style.display = list.length ? 'none' : 'block';
+  legend.innerHTML = `<span class="lg-earned"><i></i> получено (${earnedCount})</span>
+    <span class="lg-locked"><i></i> ещё не получено</span>`;
+}
+
+function achMediaHtml(a) {
+  if (a.image) {
+    const lower = a.image.toLowerCase();
+    if (lower.endsWith('.gif') || lower.endsWith('.webp')) {
+      return `<img src="${a.image}" alt="${a.title}" loading="lazy">`;
+    } else if (lower.endsWith('.mp4') || lower.endsWith('.webm')) {
+      return `<video src="${a.image}" autoplay muted loop playsinline></video>`;
+    } else {
+      return `<img src="${a.image}" alt="${a.title}" loading="lazy">`;
+    }
+  }
+  return `<div class="ach-fallback"><span>${a.icon}</span></div>`;
+}
+
+function openAchievementModal(a) {
+  const modal = $ach('achModal');
+  if (!modal) return;
+  $ach('achModalMedia').innerHTML = achMediaHtml(a);
+  $ach('achModalIcon').textContent = a.icon;
+  $ach('achModalTitle').textContent = a.title;
+  $ach('achModalDesc').textContent = a.desc || '';
+  $ach('achModalMeta').textContent = a.earned ? `Получено ${achMetaText(a)}` : `Прогресс: ${achMetaText(a)}`;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAchievementModal() {
+  const modal = $ach('achModal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  $ach('achModalMedia').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+function openPrModal(pr) {
+  // Попап «Новый рекорд!» по упражнению — с гифкой record.gif.
+  const modal = $ach('achModal');
+  if (!modal) return;
+  $ach('achModalMedia').innerHTML = achMediaHtml(Object.assign({}, pr, { title: 'Новый рекорд!' }));
+  $ach('achModalIcon').textContent = '🥇';
+  $ach('achModalTitle').textContent = 'Новый рекорд!';
+  $ach('achModalDesc').textContent = `${pr.name || 'Упражнение'} — рекордный вес ${formatKg(pr.weight)} кг`;
+  $ach('achModalMeta').textContent = '';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+(function bindAchievementModal() {
+  const modal = $ach('achModal');
+  if (!modal) return;
+  modal.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) closeAchievementModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAchievementModal();
+  });
+})();
+
 updateCompactDate();
 loadMonth();
 loadDay();
 loadSummary();
+loadAchievements({ checkUnlocks: false });
 
 // Переход в раздел «Аналитика»
 (function bindAnalytics() {

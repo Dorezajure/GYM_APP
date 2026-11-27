@@ -18,12 +18,14 @@ from typing import Optional
 import psycopg
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------- Пути и константы
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.environ.get("DATABASE_URL")
 INDEX_HTML_PATH = os.path.join(BASE_DIR, "index.html")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -35,6 +37,11 @@ app = FastAPI(
     title="Fitness Diary API",
     description="Backend для дневника тренировок. Фронтенд — статический index.html.",
 )
+
+
+# ---------------------------------------------------------------- Статика (фото/гифки достижений)
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 # ---------------------------------------------------------------- БД
@@ -634,6 +641,156 @@ def get_heatmap(year: int, month: int):
         "weeks": "26",
         "days": days,
     }
+
+
+# ---------------------------------------------------------------- API: достижения
+# Правила достижений. goal — порог метрики, metric — что считаем:
+#   "streak"   текущая серия дней подряд с активностью
+#   "total"    всего дней с активностью
+#   "sets"     всего подходов
+#   "volume_kg" всего объёма в кг (sets*reps*weight)
+# image — путь к локальному файлу /static/... (гифка/фото). Пусто = декоративный градиент+эмодзи.
+ACHIEVEMENTS = [
+    {"key": "first_workout", "title": "Первая тренировка", "desc": "Записан первый день активности", "icon": "🔥", "metric": "total", "goal": 1, "image": None},
+    {"key": "streak_3",      "title": "Разгорелся",       "desc": "3 дня подряд без пропусков", "icon": "🔥", "metric": "streak", "goal": 3, "image": None},
+    {"key": "streak_7",      "title": "Серия — неделя",   "desc": "7 дней подряд без пропусков", "icon": "⚡", "metric": "streak", "goal": 7, "image": "/static/voitenko_streak.gif"},
+    {"key": "streak_14",     "title": "Две недели",       "desc": "14 дней подряд без пропусков", "icon": "💎", "metric": "streak", "goal": 14, "image": "/static/voitenko_streak.gif"},
+    {"key": "streak_30",     "title": "Месяц в строю",    "desc": "30 дней подряд без пропусков", "icon": "👑", "metric": "streak", "goal": 30, "image": "/static/voitenko_streak.gif"},
+    {"key": "total_10",      "title": "Десятка",          "desc": "10 тренировочных дней всего", "icon": "🎯", "metric": "total", "goal": 10, "image": None},
+    {"key": "total_25",      "title": "Четверть сотни",   "desc": "25 тренировочных дней всего", "icon": "🚀", "metric": "total", "goal": 25, "image": None},
+    {"key": "total_50",      "title": "Полусотня",        "desc": "50 тренировочных дней всего", "icon": "🏆", "metric": "total", "goal": 50, "image": "/static/record.gif"},
+    {"key": "total_100",     "title": "Сотня",            "desc": "100 тренировочных дней всего", "icon": "💯", "metric": "total", "goal": 100, "image": None},
+    {"key": "volume_1000",   "title": "Тонна",            "desc": "1000 кг общего объёма в подходах", "icon": "🏋️", "metric": "volume_kg", "goal": 1000, "image": None},
+    {"key": "volume_10000",  "title": "10 тонн",          "desc": "10 000 кг общего объёма", "icon": "🎖️", "metric": "volume_kg", "goal": 10000, "image": None},
+]
+
+
+def _activity_dates(conn: psycopg.Connection):
+    """Все даты, когда была активность (упражнения, кардио или запись дня)."""
+    rows = conn.execute(
+        """
+        SELECT DISTINCT date FROM (
+            SELECT date FROM exercises
+            UNION
+            SELECT date FROM cardio_sessions
+            UNION
+            SELECT date FROM workout_days
+        ) t ORDER BY date
+        """
+    ).fetchall()
+    seen = set()
+    for r in rows:
+        try:
+            isinstance(r["date"], str) and len(r["date"]) == 10
+        except Exception:
+            continue
+        if len(r["date"]) == 10:
+            seen.add(r["date"])
+    return sorted(seen)
+
+
+def _streaks(dates):
+    """(текущая серия, лучшая серия) из отсортированного списка YYYY-MM-DD."""
+    from datetime import timedelta
+    if not dates:
+        return 0, 0
+    best = 1
+    run = 1
+    for i in range(1, len(dates)):
+        try:
+            prev_d = datetime.strptime(dates[i - 1], "%Y-%m-%d")
+            cur_d = datetime.strptime(dates[i], "%Y-%m-%d")
+        except ValueError:
+            run = 1
+            continue
+        if (cur_d - prev_d).days == 1:
+            run += 1
+            if run > best:
+                best = run
+        else:
+            run = 1
+    # текущая серия: считаем от последней даты назад
+    cur = 0
+    day = datetime.strptime(dates[-1], "%Y-%m-%d")
+    dset = set(dates)
+    while day.strftime("%Y-%m-%d") in dset:
+        cur += 1
+        day -= timedelta(days=1)
+    return cur, best
+
+
+@app.get("/api/achievements")
+def get_achievements():
+    """Достижения: стрики, общее число дней, подходы, объём + рекорды (PR) по упражнениям."""
+    conn = get_db()
+    try:
+        dates = _activity_dates(conn)
+        cur_streak, best_streak = _streaks(dates)
+        totals = conn.execute(
+            """
+            SELECT
+                COUNT(DISTINCT date) AS days,
+                COALESCE(SUM(sets), 0) AS sets,
+                COALESCE(SUM(COALESCE(sets,0)*COALESCE(reps,0)*COALESCE(weight,0)), 0) AS volume
+            FROM exercises
+            """
+        ).fetchone()
+        total_days = len(dates)
+        total_sets = int(totals["sets"] or 0)
+        total_volume = round(float(totals["volume"] or 0), 1)
+
+        metrics = {
+            "total": total_days,
+            "streak": best_streak,          # для ачивок серии используем лучшую (рекордную) серию
+            "sets": total_sets,
+            "volume_kg": total_volume,
+        }
+
+        items = []
+        for a in ACHIEVEMENTS:
+            val = metrics.get(a["metric"], 0)
+            items.append({
+                "key": a["key"],
+                "title": a["title"],
+                "desc": a["desc"],
+                "icon": a["icon"],
+                "image": a["image"],
+                "metric": a["metric"],
+                "goal": a["goal"],
+                "current": val,
+                "earned": val >= a["goal"],
+            })
+
+        # Рекорды (PR): наибольший вес по каждому упражнению
+        pr_rows = conn.execute(
+            """
+            SELECT name_key, name, weight, date
+            FROM exercises
+            WHERE weight IS NOT NULL
+            ORDER BY name_key, weight DESC, date DESC
+            """
+        ).fetchall()
+        pr_map = {}
+        for r in pr_rows:
+            if r["name_key"] not in pr_map:
+                pr_map[r["name_key"]] = {"name": r["name"], "weight": r["weight"], "date": r["date"]}
+        pr_list = sorted(
+            ({"name_key": k, "name": v["name"], "weight": v["weight"], "date": v["date"],
+              "image": "/static/record.gif"}
+             for k, v in pr_map.items()),
+            key=lambda x: x["weight"], reverse=True,
+        )[:10]
+
+        return {
+            "achievements": items,
+            "current_streak": cur_streak,
+            "best_streak": best_streak,
+            "total_days": total_days,
+            "total_volume": total_volume,
+            "prs": pr_list,
+        }
+    finally:
+        conn.close()
 
 
 @app.get("/", include_in_schema=False)
