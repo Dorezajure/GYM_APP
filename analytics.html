@@ -127,6 +127,63 @@
   }
   .err{color:var(--danger)}
   .loading{text-align:center;color:var(--muted);padding:40px 0}
+
+  /* -------------------- Тепловая карта -------------------- */
+  .hm-card{
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:14px;margin-bottom:18px;
+  }
+  .hm-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin-bottom:12px;
+  }
+  .hm-title{font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+  .hm-title .pill{
+    font-size:11px;color:var(--muted);background:var(--border-soft);
+    padding:2px 8px;border-radius:20px;font-weight:500;
+  }
+  .seg{
+    display:flex;background:var(--border-soft);border:1px solid var(--border);
+    border-radius:10px;padding:3px;gap:3px;
+  }
+  .seg button{
+    flex:1;border:none;background:transparent;color:var(--muted);
+    padding:7px 10px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;white-space:nowrap;
+  }
+  .seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:600}
+
+  .hm-stats{display:flex;gap:10px;margin-bottom:12px}
+  .hm-stat{
+    flex:1;background:var(--border-soft);border:1px solid var(--border);
+    border-radius:12px;padding:10px;text-align:center;
+  }
+  .hm-stat .n{font-size:20px;font-weight:700;line-height:1.1}
+  .hm-stat .l{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .hm-scroll{overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .hm-grid{
+    display:grid;grid-template-columns:20px repeat(26,16px);
+    grid-auto-rows:16px;gap:3px;min-width:494px;
+  }
+  .hm-dow{font-size:9px;color:var(--muted);display:grid;place-items:center}
+  .hm-mon{font-size:9px;color:var(--muted);text-align:center;font-weight:600}
+  .hm-cell{border-radius:3px;background:var(--c0)}
+  .hm-cell.b1{background:var(--c1)}
+  .hm-cell.b2{background:var(--c2)}
+  .hm-cell.b3{background:var(--c3)}
+  .hm-cell.b4{background:var(--c4)}
+  .hm-cell.t{outline:1px dashed #ff6b4a;outline-offset:1px}
+  .hm-legend{
+    display:flex;align-items:center;gap:6px;justify-content:flex-end;
+    margin-top:10px;font-size:10px;color:var(--muted);
+  }
+  .hm-legend .bx{width:11px;height:11px;border-radius:3px}
+  .hm-foot{color:var(--muted);font-size:11px;margin-top:8px;line-height:1.5}
+
+  :root{
+    --c0:#e8edf3; --c1:#bddfc9; --c2:#7fc99b; --c3:#3fa06a; --c4:#ffd35c;
+  }
 </style>
 </head>
 <body>
@@ -146,6 +203,32 @@
     <select id="monthSel" class="sel" aria-label="Месяц"></select>
     <select id="yearSel" class="sel" aria-label="Год"></select>
     <div class="month-title"><span class="dot"></span><span id="monthLabel"></span></div>
+  </div>
+
+  <!-- Тепловая карта активности -->
+  <div class="hm-card" id="hmCard" style="display:none">
+    <div class="hm-head">
+      <div class="hm-title">Активность <span class="pill">26 нед.</span></div>
+      <div class="seg" id="hmTabs">
+        <button type="button" data-metric="sessions" class="on">График</button>
+        <button type="button" data-metric="sets">Объём</button>
+        <button type="button" data-metric="days">Дни</button>
+      </div>
+    </div>
+    <div class="hm-stats">
+      <div class="hm-stat"><div class="n" id="hmSessions">0</div><div class="l">тренировок</div></div>
+      <div class="hm-stat"><div class="n" id="hmPerWeek">0</div><div class="l">в неделю</div></div>
+      <div class="hm-stat"><div class="n" id="hmStreak">0</div><div class="l">текущая серия</div></div>
+    </div>
+    <div class="hm-scroll"><div class="hm-grid" id="hmGrid"></div></div>
+    <div class="hm-legend">
+      Меньше <span class="bx" style="background:var(--c0)"></span>
+      <span class="bx" style="background:var(--c1)"></span>
+      <span class="bx" style="background:var(--c2)"></span>
+      <span class="bx" style="background:var(--c3)"></span>
+      <span class="bx" style="background:var(--c4)"></span> Больше
+    </div>
+    <div class="hm-foot" id="hmFoot"></div>
   </div>
 
   <div id="content">
@@ -327,8 +410,8 @@ function initSelects(){
     if (i === curMonth) opt.selected = true;
     $("#monthSel").appendChild(opt);
   });
-  $("#monthSel").addEventListener("change", loadAnalytics);
-  $("#yearSel").addEventListener("change", loadAnalytics);
+  $("#monthSel").addEventListener("change", () => { loadAnalytics(); loadHeatmap(); });
+  $("#yearSel").addEventListener("change", () => { loadAnalytics(); loadHeatmap(); });
 }
 
 /* ---------- загрузка ---------- */
@@ -360,6 +443,144 @@ function loadAnalytics(){
     });
 }
 
+/* ---------- Тепловая карта ---------- */
+const DOW = ["П","В","С","Ч","Пт","Сб","Вс"];
+let hmData = null;
+let hmMetric = "sessions";
+
+function monthShort(iso){ // '2026-11-27' -> месяц/год
+  const [,m] = iso.split("-");
+  return MONTHS[parseInt(m,10)-1].slice(0,3);
+}
+
+function quantile(dayCounts, metric){
+  // Делим ненулевые значения дней на 4 квантеля по числу дней с активностью
+  const vals = dayCounts.map(d => d[metric]).filter(v => v && v > 0).sort((a,b)=>a-b);
+  if (!vals.length) return [0,0,0,0];
+  const n = vals.length;
+  const pc = p => vals[Math.min(vals.length-1, Math.floor(p*(vals.length-1)))];
+  return [pc(.25), pc(.5), pc(.75), pc(1)];
+}
+
+function levelFor(metric, val, q){
+  if (!val || val <= 0) return 0;
+  if (val >= q[3]) return 4;
+  if (val >= q[2]) return 3;
+  if (val >= q[1]) return 2;
+  return 1;
+}
+
+function renderHeatmap(){
+  const grid = $("#hmGrid");
+  if (!hmData || !hmData.days || !hmData.days.length) return;
+  const days = hmData.days;
+  const q = quantile(days, hmMetric);
+
+  // lookup по дате
+  const byDate = {};
+  days.forEach(d => byDate[d.date] = d);
+
+  // Первый понедельник, не позднее start_date
+  const startDate = new Date(hmData.start_date + "T00:00:00");
+  const endDate   = new Date(hmData.end_date + "T00:00:00");
+  const firstMon  = new Date(startDate);
+  firstMon.setDate(firstMon.getDate() - ((firstMon.getDay() + 6) % 7)); // Пн=0
+
+  // Колонки-недели
+  const cols = [];
+  let cur = new Date(firstMon);
+  while (cur <= endDate){
+    cols.push(new Date(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+
+  // Шапка месяцев
+  let header = '<div class="hm-dow"></div>';
+  for (let w=0; w<cols.length; w++){
+    const thisMon = cols[w].getMonth();
+    const prevMon = w>0 ? cols[w-1].getMonth() : null;
+    const lab = (prevMon !== thisMon)
+      ? MONTHS[thisMon].slice(0,3) : "";
+    header += `<div class="hm-mon">${lab}</div>`;
+  }
+
+  const iso = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const today = todayIso();
+
+  let html = header;
+  for (let dow=0; dow<7; dow++){
+    html += `<div class="hm-dow">${DOW[dow]}</div>`;
+    for (let w=0; w<cols.length; w++){
+      const dom = new Date(cols[w]);
+      dom.setDate(dom.getDate() + dow);
+      // пропускаем дни вне диапазона
+      if (dom < startDate || dom > endDate){ html += '<div class="hm-cell"></div>'; continue; }
+      const d = byDate[iso(dom)];
+      if (!d){ html += '<div class="hm-cell"></div>'; continue; }
+      const metric = hmMetric === "days" ? (d.sessions>0?1:0) : d[hmMetric];
+      const qq = hmMetric === "days" ? [1,1,1,1] : q;
+      const lvl = levelFor(hmMetric==="days"?"sessions":hmMetric, metric, qq);
+      const isToday = iso(dom) === today;
+      html += `<div class="hm-cell b${lvl} ${isToday?'t':''}" title="${iso(dom)} · ${metric}"></div>`;
+    }
+  }
+  grid.innerHTML = html;
+
+  // KPI
+  const activeDays = days.filter(d=>d.sessions>0);
+  $("#hmSessions").textContent = activeDays.length;
+  $("#hmPerWeek").textContent = (activeDays.length/26).toFixed(1);
+  $("#hmStreak").textContent = currentStreak(days) + " дн.";
+
+  const names = {sessions:"Тренировки по дням", sets:"Объём (подходы×повторения×вес)", days:"Дни с тренировкой"};
+  $("#hmFoot").textContent = names[hmMetric] + " · " + shortRange();
+}
+
+function todayIso(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function currentStreak(days){
+  // текущая серия = подряд активных дней, заканчивая последним днём с активностью (или сегодня)
+  let streak = 0;
+  for(let i=days.length-1;i>=0;i--){
+    if(days[i].sessions>0) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function shortRange(){
+  if(!hmData) return "";
+  return hmData.start_date.slice(0,7) + " → " + hmData.end_date.slice(0,7);
+}
+
+function loadHeatmap(){
+  const year = selYear(), month = selMonth();
+  fetch(`/api/heatmap?year=${year}&month=${month}`)
+    .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(data => {
+      hmData = data;
+      if (data && data.days && data.days.length){
+        $("#hmCard").style.display = "block";
+        renderHeatmap();
+      } else {
+        $("#hmCard").style.display = "none";
+      }
+    })
+    .catch(err => { console.error("heatmap", err); });
+}
+
+$("#hmTabs").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if(!btn) return;
+  hmMetric = btn.dataset.metric;
+  $("#hmTabs").querySelectorAll("button").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  renderHeatmap();
+});
+
 /* ---------- навигация и старт ---------- */
 $("#backBtn").addEventListener("click", () => {
   window.location.href = "/";
@@ -368,6 +589,7 @@ $("#backBtn").addEventListener("click", () => {
 window.addEventListener("load", () => {
   initSelects();
   loadAnalytics();
+  loadHeatmap();
 });
 
 // Скрыть сплеш-экран после загрузки (как на главной) и убрать из DOM

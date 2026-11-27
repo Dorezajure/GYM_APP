@@ -548,6 +548,94 @@ def get_analytics(year: int, month: int):
     return {"items": items}
 
 
+# ---------------------------------------------------------------- API: тепловая карта
+@app.get("/api/heatmap")
+def get_heatmap(year: int, month: int):
+    """Тепловая карта активности за последние 26 недель, заканчивая выбранным месяцем.
+    По каждой дате: sessions (число тренировок), sets (сумма подходов),
+    volume (объём в кг = sets*reps*weight)."""
+    if not 1 <= month <= 12:
+        raise HTTPException(400, "Месяц должен быть от 1 до 12")
+
+    from datetime import timedelta
+
+    # Последний день выбранного месяца — правая граница диапазона
+    end = datetime(year, month, 1)
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
+    else:
+        next_month = datetime(year, month + 1, 1)
+    end_day = next_month - timedelta(days=1)          # последний день месяца
+    end = end_day
+
+    # 26 недель назад + 6 дней = стартовая дата
+    start = end - timedelta(days=26 * 7 - 1)
+    start_day = start.day
+    start_month = start.month
+    start_year = start.year
+    n_days = (end - start).days + 1                    # должно быть 26*7 = 182
+
+    start_fmt = start.strftime("%Y-%m-%d")
+    end_fmt = end.strftime("%Y-%m-%d")
+
+    conn = get_db()
+    daily = {}
+    try:
+        # Заготовка: все дни диапазона с нулями
+        for i in range(n_days):
+            d = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+            daily[d] = {"sessions": 0, "sets": 0, "volume": 0.0}
+
+        rows = conn.execute(
+            """
+            SELECT date,
+                   COALESCE(SUM(sets), 0) AS sets,
+                   COALESCE(SUM(COALESCE(sets,0)*COALESCE(reps,0)*COALESCE(weight,0)), 0) AS volume
+            FROM exercises
+            WHERE date >= %s AND date <= %s AND sets IS NOT NULL
+            GROUP BY date
+            """,
+            (start_fmt, end_fmt),
+        ).fetchall()
+
+        for r in rows:
+            d = r["date"]
+            if d in daily:
+                daily[d]["sets"] += int(r["sets"])
+                daily[d]["volume"] += round(float(r["volume"]), 1)
+
+        # sessions = число записей активности в день (упражнения + кардио) — даёт градацию интенсивности
+        act = conn.execute(
+            """
+            SELECT date, COUNT(*) AS c FROM (
+                SELECT date FROM exercises    WHERE date >= %s AND date <= %s
+                UNION ALL
+                SELECT date FROM cardio_sessions WHERE date >= %s AND date <= %s
+            ) t GROUP BY date
+            """,
+            (start_fmt, end_fmt, start_fmt, end_fmt),
+        ).fetchall()
+        for r in act:
+            if r["date"] in daily:
+                daily[r["date"]]["sessions"] = int(r["c"])
+    finally:
+        conn.close()
+
+    days = [{"date": d, **daily[d]} for d in daily]
+    days.sort(key=lambda x: x["date"])
+
+    # Показатели первой недели для выборки (для контекста, не используются фронтом критически)
+    return {
+        "start_date": start_fmt,
+        "end_date": end_fmt,
+        "start_day": start_day,
+        "start_month": start_month,
+        "start_year": start_year,
+        "weeks": "26",
+        "days": days,
+    }
+
+
 @app.get("/", include_in_schema=False)
 def serve_index():
     if not os.path.exists(INDEX_HTML_PATH):
