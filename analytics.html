@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Аналитика — Дневник тренировок</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Дневник тренировок">
+<style>
+  *{box-sizing:border-box}
+  .splash{position:fixed;inset:0;z-index:9999;background:#fff;
+          display:flex;align-items:center;justify-content:center;
+          transition:opacity .4s ease, visibility .4s ease}
+  .splash.hide{opacity:0;visibility:hidden}
+  .splash-logo{width:96px;height:96px;border-radius:22px;
+               animation:splash-pop .8s ease}
+  @keyframes splash-pop{
+    0%{transform:scale(.6);opacity:0}
+    60%{transform:scale(1.08);opacity:1}
+    100%{transform:scale(1);opacity:1}
+  }
+  :root{
+    --bg:#f4f5f7;
+    --card:#ffffff;
+    --text:#111827;
+    --muted:#6b7280;
+    --accent:#2563eb;
+    --accent-hover:#1d4ed8;
+    --accent-soft:rgba(37, 99, 235, 0.08);
+    --border:#e5e7eb;
+    --border-soft:#f1f2f4;
+
+    --up-bg:#dcfce7;
+    --up-fg:#15803d;
+    --up-soft:rgba(21, 128, 61, 0.16);
+
+    --danger:#dc2626;
+    --danger-bg:#fee2e2;
+
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 16px 60px}
+
+  .topbar{
+    display:flex;align-items:center;gap:12px;margin-bottom:4px;
+    padding-top:4px;
+  }
+  .back-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;flex:0 0 38px;
+    border:1px solid var(--border);border-radius:12px;
+    background:var(--card);color:var(--text);cursor:pointer;
+    font-size:20px;line-height:1;padding:0;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .back-btn:active{transform:scale(.96)}
+  .topbar h1{
+    font-size:20px;margin:0;letter-spacing:-0.01em;line-height:1.2;
+  }
+  .topbar .ana-logo{width:22px;height:22px;flex:0 0 22px;opacity:.85}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+
+  .month-title{
+    display:inline-flex;align-items:center;gap:8px;
+    font-weight:600;color:var(--accent);font-size:14px;
+    background:var(--accent-soft);padding:6px 12px;border-radius:999px;
+    margin-bottom:18px;
+  }
+  .month-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+  .blocks{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+  @media (min-width:820px){
+    .blocks{grid-template-columns:1fr 1fr}
+  }
+  .block{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
+  .block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+  .block-title{font-weight:600;font-size:15px}
+  .point-count{color:var(--muted);font-size:12px}
+  .block-sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+
+  .total{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft);
+    font-size:13px;
+  }
+  .total .lab{color:var(--muted)}
+  .delta{
+    display:inline-flex;align-items:center;gap:4px;
+    font-weight:700;font-size:14px;border-radius:8px;padding:3px 9px;
+  }
+  .delta.up{background:var(--up-bg);color:var(--up-fg)}
+  .delta.down{background:var(--danger-bg);color:var(--danger)}
+  .delta.flat{background:var(--border-soft);color:var(--muted)}
+
+  .svg-wrap{width:100%}
+  .svg-wrap svg{display:block;width:100%;height:auto;overflow:visible}
+
+  .empty{
+    background:var(--card);border:1px dashed var(--border);border-radius:14px;
+    padding:40px 20px;text-align:center;color:var(--muted);font-size:14px;
+  }
+  .err{color:var(--danger)}
+  .loading{text-align:center;color:var(--muted);padding:40px 0}
+</style>
+</head>
+<body>
+<div class="splash" id="splash">
+  <img src="icon-180.png" alt="Дневник тренировок" class="splash-logo">
+</div>
+
+<div class="wrap">
+  <div class="topbar">
+    <button class="back-btn" id="backBtn" type="button" aria-label="Назад">‹</button>
+    <h1>Аналитика</h1>
+    <img src="icon-analytics.png" alt="" class="ana-logo">
+  </div>
+  <div class="sub">Прогресс по каждому упражнению за текущий месяц: вес каждого подхода и сводка изменений к концу месяца.</div>
+
+  <div class="month-title"><span class="dot"></span><span id="monthLabel"></span></div>
+
+  <div id="content">
+    <div class="loading" id="loading">Загружаем данные…</div>
+    <div class="empty" id="empty" style="display:none">За этот месяц по упражнениям пока нет данных с весом. Добавь упражнения с рабочим весом — и здесь появится прогресс.</div>
+    <div class="blocks" id="blocks"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const norm = s => String(s == null ? "" : s).trim().toLowerCase();
+
+const $ = s => document.querySelector(s);
+
+const CHART = {
+  line:"#2563eb",
+  good:"#16a34a",
+  bad:"#dc2626",
+  grid:"#e5e7eb",
+  tick:"#9ca3af",
+  axis:"#d1d5db",
+  halo:"#ffffff"
+};
+
+/* ---------- месяцы ---------- */
+const MONTHS = ["январь","февраль","март","апрель","май","июнь",
+                "июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+function titleCase(m){ return m[0].toUpperCase() + m.slice(1); }
+
+function fmtW(w){
+  return String(+w).replace(/\.?0+$/,"");
+}
+
+/* ---------- рендер одного графика ---------- */
+function renderBlock(item){
+  const pts = item.points || [];
+  const blocksRoot = $("#blocks");
+  const blk = document.createElement("div");
+  blk.className = "block";
+  blocksRoot.appendChild(blk);
+
+  const head = document.createElement("div");
+  head.className = "block-head";
+  head.innerHTML = `<div class="block-title"></div><div class="point-count"></div>`;
+  head.querySelector(".block-title").textContent = item.name || item.name_key;
+  const nTxt = pts.length === 1 ? "1 точка" : pts.length + " точек";
+  head.querySelector(".point-count").textContent = nTxt;
+  blk.appendChild(head);
+
+  const sub = document.createElement("div");
+  sub.className = "block-sub";
+  sub.textContent = "Вес (кг) по дням месяца";
+  blk.appendChild(sub);
+
+  // SVG
+  const wrap = document.createElement("div");
+  wrap.className = "svg-wrap";
+  wrap.innerHTML = svg(pts);
+  blk.appendChild(wrap);
+
+  // ИТОГО
+  const total = document.createElement("div");
+  total.className = "total";
+  const d = item.delta;
+  const arrow = d > 0 ? "▲" : d < 0 ? "▼" : "=";
+  let cls = "flat", txt = "Без изменений";
+  if (d > 0){ cls = "up"; txt = "Лучше на +" + fmtW(d) + " кг"; }
+  else if (d < 0){ cls = "down"; txt = "Хуже на " + fmtW(Math.abs(d)) + " кг"; }
+  total.innerHTML =
+    `<span class="lab">ИТОГО</span>` +
+    `<span class="delta ${cls}">${arrow} ${txt}</span>`;
+  blk.appendChild(total);
+}
+
+/* ---------- SVG построение линий ---------- */
+function svg(pts){
+  const W = 560, H = 220;
+  const PAD = { left:38, right:10, top:24, bottom:34 };
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  if (!pts.length){
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Нет данных"><text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="13" fill="${CHART.tick}">Нет точек</text></svg>`;
+  }
+
+  let wMin = Infinity, wMax = -Infinity;
+  pts.forEach(p => { wMin = Math.min(wMin, p.weight); wMax = Math.max(wMax, p.weight); });
+  if (wMax === wMin) wMax += 1;
+  const pad = (wMax - wMin) * 0.15 || 1;
+  const lo = wMin - pad, hi = wMax + pad;
+
+  const totalDays = monthDays();
+  const x = day => PAD.left + (day - 1) / (totalDays - 1) * plotW;
+  const y = w => PAD.top + (hi - w) / (hi - lo) * plotH;
+
+  // X-подписи: первый, средний, последний день
+  const XL = [1, Math.round(totalDays/2), totalDays];
+
+  let parts = [];
+  // горизонтальная сетка
+  const nG = 4;
+  for (let i=0;i<=nG;i++){
+    const val = lo + (hi - lo) * i / nG;
+    const yy = PAD.top + plotH * i / nG;
+    parts.push(`<line x1="${PAD.left}" y1="${yy}" x2="${PAD.left+plotW}" y2="${yy}" stroke="${CHART.grid}" stroke-width="1"/>`);
+    parts.push(`<text x="${PAD.left-7}" y="${yy+4}" text-anchor="end" font-size="10" fill="${CHART.tick}">${fmtW(val)}</text>`);
+  }
+  // ось X
+  parts.push(`<line x1="${PAD.left}" y1="${PAD.top+plotH}" x2="${PAD.left+plotW}" y2="${PAD.top+plotH}" stroke="${CHART.axis}" stroke-width="1"/>`);
+  XL.forEach(d => {
+    const xx = x(d);
+    parts.push(`<text x="${xx}" y="${PAD.top+plotH+16}" text-anchor="middle" font-size="10" fill="${CHART.tick}">${d}</text>`);
+  });
+
+  // сетка дней с данными (вертикальные пунктиры)
+  const map = {};                    // day -> weight
+  pts.forEach(p => { map[+p.date.split("-")[2]] = p.weight; });
+
+  // кривая
+  let d = "";
+  const keys = Object.keys(map).map(Number).sort((a,b)=>a-b);
+  keys.forEach((k,i) => {
+    const px = x(k), py = y(map[k]);
+    d += (i===0 ? "M" : "L") + px.toFixed(1) + " " + py.toFixed(1) + " ";
+  });
+  parts.push(`<path d="${d}" fill="none" stroke="${CHART.line}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`);
+
+  // точки
+  let firstW = null;
+  keys.forEach((k,i) => {
+    const px = x(k), py = y(map[k]);
+    const isFirst = i===0, isLast = i===keys.length-1;
+    if (isFirst){ firstW = map[k]; }
+    // цвет по приросту от первой точки
+    let col = CHART.line;
+    if (map[k] > firstW) col = CHART.good;
+    else if (map[k] < firstW) col = CHART.bad;
+    parts.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="${col}" stroke="${CHART.halo}" stroke-width="1.5"/>`);
+    // подпись только для первой/последней и уникальных
+    if (isFirst || isLast || keys.length <= 4){
+      parts.push(`<text x="${px.toFixed(1)}" y="${(py-8).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="600" fill="${CHART.tick}">${fmtW(map[k])}</text>`);
+    }
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="График веса по упражнению">${parts.join("")}</svg>`;
+}
+
+function monthDays(){
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+}
+
+/* ---------- загрузка ---------- */
+function daysInMonthLabel(){
+  const now = new Date();
+  return `${titleCase(MONTHS[now.getMonth()])} ${now.getFullYear()}`;
+}
+
+function loadAnalytics(){
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth()+1;
+  $("#monthLabel").textContent = daysInMonthLabel();
+
+  fetch(`/api/analytics?year=${year}&month=${month}`)
+    .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(data => {
+      $("#loading").style.display = "none";
+      const items = (data && data.items) || [];
+      if (!items.length){
+        $("#empty").style.display = "block";
+        return;
+      }
+      $("#blocks").innerHTML = "";
+      items.forEach(renderBlock);
+    })
+    .catch(err => {
+      $("#loading").style.display = "none";
+      $("#loading").className = "loading err";
+      $("#loading").textContent = "Не удалось загрузить данные. Попробуй ещё раз.";
+      console.error(err);
+    });
+}
+
+/* ---------- навигация и старт ---------- */
+$("#backBtn").addEventListener("click", () => {
+  window.location.href = "index.html";
+});
+
+window.addEventListener("load", () => {
+  loadAnalytics();
+});
+
+// Скрыть сплеш-экран после загрузки (как на главной) и убрать из DOM
+(function hideSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+  const doHide = () => {
+    splash.classList.add('hide');
+    setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+  };
+  if (document.readyState === 'complete') doHide();
+  else window.addEventListener('load', doHide);
+  setTimeout(doHide, 2500); // страховка, если данные грузятся дольше
+})();
+</script>
+</body>
+</html>

@@ -62,7 +62,18 @@
     -webkit-font-smoothing:antialiased;
   }
   .wrap{max-width:1080px;margin:0 auto;padding:26px 16px 60px}
-  h1{font-size:22px;margin:0 0 4px;letter-spacing:-0.01em}
+  h1{font-size:22px;margin:0;letter-spacing:-0.01em}
+  .head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px}
+  .head-title{display:flex;align-items:center;gap:10px;min-width:0}
+  .ana-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;flex:0 0 38px;
+    border:1px solid var(--border);border-radius:12px;
+    background:var(--card);cursor:pointer;padding:0;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ana-btn:active{transform:scale(.96)}
+  .ana-btn img{width:22px;height:22px;display:block}
   .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
   .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px}
@@ -344,7 +355,12 @@
   <img src="icon-180.png" alt="Дневник тренировок" class="splash-logo">
 </div>
 <div class="wrap">
-  <h1>Дневник тренировок</h1>
+  <div class="head-row">
+    <div class="head-title"><h1>Дневник тренировок</h1></div>
+    <button class="ana-btn" id="anaBtn" type="button" aria-label="Аналитика">
+      <img src="icon-analytics.png" alt="Аналитика">
+    </button>
+  </div>
   <div class="sub">Выбери день, запиши упражнения, отметь время, вес и самочувствие. Улучшения подсвечиваются зелёным с приростом.</div>
 
   <div class="layout">
@@ -1022,6 +1038,15 @@ updateCompactDate();
 loadMonth();
 loadDay();
 loadSummary();
+
+// Переход в раздел «Аналитика»
+(function bindAnalytics() {
+  const btn = document.getElementById('anaBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    window.location.href = 'analytics.html';
+  });
+})();
 
 // Скрыть сплеш-экран после загрузки содержимого (и страховка по таймеру)
 (function hideSplash() {

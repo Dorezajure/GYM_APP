@@ -501,6 +501,53 @@ def get_summary():
 
 
 # ---------------------------------------------------------------- Раздача фронтенда
+# ---------------------------------------------------------------- API: аналитика
+@app.get("/api/analytics")
+def get_analytics(year: int, month: int):
+    """Прогресс по упражнениям за месяц: для каждого name_key — точки {date, weight}
+    и сводка (первое и последнее значение веса за месяц, дельта)."""
+    if not 1 <= month <= 12:
+        raise HTTPException(400, "Месяц должен быть от 1 до 12")
+    prefix = f"{year:04d}-{month:02d}"
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT date, name_key, name, weight
+            FROM exercises
+            WHERE substr(date, 1, 7) = %s AND weight IS NOT NULL
+            ORDER BY name_key, date, id
+            """,
+            (prefix,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    by_key = {}
+    order = []
+    for r in rows:
+        key = r["name_key"]
+        if key not in by_key:
+            by_key[key] = {"name_key": key, "name": r["name"], "points": []}
+            order.append(key)
+        by_key[key]["points"].append({"date": r["date"], "weight": r["weight"]})
+
+    items = []
+    for key in order:
+        pts = by_key[key]["points"]
+        first = pts[0]["weight"]
+        last = pts[-1]["weight"]
+        items.append({
+            "name_key": key,
+            "name": by_key[key]["name"],
+            "points": pts,
+            "first_weight": first,
+            "last_weight": last,
+            "delta": round(last - first, 2),
+        })
+    return {"items": items}
+
+
 @app.get("/", include_in_schema=False)
 def serve_index():
     if not os.path.exists(INDEX_HTML_PATH):
@@ -509,6 +556,25 @@ def serve_index():
             f"Файл index.html не найден рядом с main.py (ожидался: {INDEX_HTML_PATH})"
         )
     return FileResponse(INDEX_HTML_PATH, media_type="text/html")
+
+
+@app.get("/analytics.html", include_in_schema=False)
+def serve_analytics():
+    path = os.path.join(BASE_DIR, "analytics.html")
+    if not os.path.exists(path):
+        raise HTTPException(
+            500,
+            f"Файл analytics.html не найден рядом с main.py (ожидался: {path})"
+        )
+    return FileResponse(path, media_type="text/html")
+
+
+@app.get("/icon-analytics.png", include_in_schema=False)
+def serve_analytics_icon():
+    icon = os.path.join(BASE_DIR, "icon-analytics.png")
+    if not os.path.exists(icon):
+        raise HTTPException(404, "Иконка аналитики не найдена")
+    return FileResponse(icon, media_type="image/png")
 
 
 @app.get("/icon-180.png", include_in_schema=False)
